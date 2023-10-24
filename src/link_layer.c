@@ -5,19 +5,29 @@
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
+
+int TransmitterFrames = 0;
+int ReceiverFrames = 0;
+
+
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
-int llopen(LinkLayer connectionParameters)
-{
-    // TODO
-
-    return 1;
+int llopen(LinkLayer connectionParameters){
+    LinkLayerRole role = connectionParameters.role;
+    if (role == LlTx) {
+        return llOpenTransmitter(connectionParameters);
+    }
+    else {
+        return llOpenReceiver(connectionParameters);
+    }
 }
 
 ////////////////////////////////////////////////
 // LLWRITE
 ////////////////////////////////////////////////
+
+
 int llwrite(const unsigned char *buf, int bufSize)
 {
     // TODO
