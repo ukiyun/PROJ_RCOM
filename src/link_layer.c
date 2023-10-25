@@ -28,9 +28,16 @@ int llopen(LinkLayer connectionParameters){
 ////////////////////////////////////////////////
 
 
-int llwrite(const unsigned char *buf, int bufSize)
+int llwrite(int fd, const unsigned char *buf, int bufSize)
 {
-    // TODO
+    newAlarm();
+
+    unsigned char* new_frame = (unsigned char*)malloc(2 * bufSize + 6);
+    
+    
+    // Header
+    
+    
 
     return 0;
 }

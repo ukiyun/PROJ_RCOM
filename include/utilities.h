@@ -13,9 +13,36 @@
 #include <unistd.h>
 #include <signal.h>
 
+// Frame Holder
+extern struct mainFrame_struct {
+	unsigned char frame[MAX_PAYLOAD];
+	size_t size;
+	int fd;
+}mainFrame;
+
+// Alarm Config
+extern struct alarmConfig_struct {
+	int Counter;
+	int timeout;
+	int nreTransmissions;
+	int alarmEnabled;
+}alarmConfig;
+
+void newAlarm();
+
 void alarmHandler();
 
 int SerialPortHandling(char serialPortName[50]); // Handling the SerialPort, based on TP1 and TP2 files
+
+void buildSupUnnFrames(unsigned char Address, unsigned char Control);    // Builds Supervision and Unnumbered Frames
+
+void buildInfoFrames(); // Builds Information Frame
+
+void sendFrame(int fd, unsigned char* frame, int n);
+
+int sendSup(int fd, unsigned char Address, unsigned char C);
+
+unsigned char BCC2(unsigned char* frame, int size); // Field to detect the occurrence of errors in the data field
 
 unsigned char* stuffing(const unsigned char* frame, int frameSize, int* newSize); // Byte Stuffing Mechanism
 

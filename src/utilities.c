@@ -2,15 +2,21 @@
 
 volatile int STOP = FALSE;
 
-// alarm flag and counter for timeout
-int alarmCounter = 0;
-int alarmEnabled = FALSE;
+struct mainFrame_struct mainFrame;
+struct alarmConfig_struct alarmConfig;
+
+
+void newAlarm(){
+    alarmConfig.alarmEnabled = FALSE;
+    alarmConfig.Counter = 0;
+}
 
 void alarmHandler() {
-    alarmEnabled = TRUE;
-    alarmCounter++;
-    print("Alarm %d triggered.\n", alarmCounter);
+    alarmConfig.alarmEnabled = TRUE;
+    alarmConfig.Counter++;
+    print("Alarm %d triggered.\n", alarmConfig.Counter);
 }
+
 
 int SerialPortHandling(char serialPortName[50]) {
 
@@ -54,6 +60,42 @@ int SerialPortHandling(char serialPortName[50]) {
 
     return 1;
 
+}
+
+void buildSupUnnFrames(unsigned char Address, unsigned char Control) {
+    mainFrame.frame[0] = FLAG;
+    mainFrame.frame[1] = Address;
+    mainFrame.frame[2] = Control;
+    mainFrame.frame[3] = Address ^ Control;
+    mainFrame.frame[4] = FLAG;
+
+    mainFrame.size = 5;
+
+}
+
+
+void buildInfoFrames() {
+
+}
+
+void sendFrame(int fd, unsigned char* frame, int n) {
+    write(fd, frame, n);
+    alarm(alarmConfig.timeout);
+}
+
+int sendSup(int fd, unsigned char Address, unsigned char Control) {
+    buildSupUnnFrames(Address, Control);
+    return write(fd, mainFrame.frame, mainFrame.size);
+}
+
+
+unsigned char BCC2(unsigned char* data, int size) {
+    unsigned char bcc = data[0];
+    for (int i = 1; i < size; i++) { // iterate through the data, D1 XOR D2 XOR D3 ... XOR Dn
+        bcc = bcc ^ data[0];        // XOR operation
+    }
+    
+    return bcc;
 }
 
 unsigned char* stuffing(const unsigned char* frame, int frameSize, int* newSize) {

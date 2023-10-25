@@ -8,6 +8,8 @@
 #define FALSE 0
 
 #define BUF_SIZE 256
+#define BLOCK_SIZE 1024
+#define MAX_PAYLOAD (BLOCK_SIZE*2+6)   // Stuffed Frame Size
 
 // buffer indexes
 #define FLAG 0x7E		// Start or End of frame

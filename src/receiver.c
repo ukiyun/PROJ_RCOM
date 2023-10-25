@@ -24,13 +24,13 @@ int llOpenReceiver(LinkLayer connectionParameters) {
 		set_frame[bytes] = '\0';
 		stateTransition(stM, set_frame, bytes, A_TX, C_SET);
 		if (stM->currentState == STOP) {
-			unsigned char set_frame[5] = { FLAG, A_RX, C_UA, A_RX ^ C_UA, FLAG };
-			write(fd, set_frame, 5);
+			sendSup(fd, A_RX, C_UA);
 			STOP = TRUE;
 		}
 	}
 
 	free(stM);  // deallocates the memory previously allocated by malloc
+	printf("Receiver Successfully Opened");
 
 	return 0;
 }
