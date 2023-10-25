@@ -16,7 +16,7 @@ typedef enum {
 	A_RCV,			// Received Address Field
 	C_RCV,			// Received Control Field
 	BCC_OK,			// Received Independent Protection Field and is valid
-	STOP			// End State
+	STOP_MACHINE	// End State
 }State;
 
 

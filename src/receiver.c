@@ -3,9 +3,8 @@
 #include "link_layer.h"
 #include "state_machine.h"
 
-volatile int STOP = FALSE;
-int alarmCounter = 0;
-int alarmEnabled = FALSE;
+
+STOP = FALSE;
 
 int llOpenReceiver(LinkLayer connectionParameters) {
 	int fd; 
@@ -23,7 +22,7 @@ int llOpenReceiver(LinkLayer connectionParameters) {
 		int bytes = read(fd, set_frame, 5);
 		set_frame[bytes] = '\0';
 		stateTransition(stM, set_frame, bytes, A_TX, C_SET);
-		if (stM->currentState == STOP) {
+		if (stM->currentState == STOP_MACHINE) {
 			sendSup(fd, A_RX, C_UA);
 			STOP = TRUE;
 		}

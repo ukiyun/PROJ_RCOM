@@ -46,7 +46,7 @@ void stateTransition(StateMachine* stM, unsigned char* frame, int size, unsigned
                 break;
             case BCC_OK:
                 if (byte == FLAG) {
-                    stateChange(stM, STOP);
+                    stateChange(stM, STOP_MACHINE);
                 }
                 else {
                     stateChange(stM, START);
