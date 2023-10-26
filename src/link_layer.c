@@ -27,7 +27,7 @@ int llopen(LinkLayer connectionParameters){
 ////////////////////////////////////////////////
 
 
-int llwrite(int fd, const unsigned char *buf, int bufSize)
+int llwrite(int fd, const unsigned char* buf, int bufSize)
 {
     // buf = array of characters to transmit
 
@@ -44,32 +44,26 @@ int llwrite(int fd, const unsigned char *buf, int bufSize)
     newAlarm(); // resets alarmCounter but nRetransmissions maintains also changes alarmEnable to FALSE
 
     int chars_written = 0;
-
+    int acceptedControlField = 0;
 
     while (alarmConfig.Counter < alarmConfig.nreTransmissions) {
         alarmConfig.Counter++;
+        sendFrame(fd, new_frame, new_frame_size + 1);   // Writes newly created frame (main frame with stuffing) into the file descriptor
 
-        //initiating state machine
-        StateMachine* stM = (StateMachine*)malloc(sizeof(StateMachine));
-        stateChange(stM, START);
+        while (alarmConfig.alarmEnabled == FALSE && accepted == 0) {
+            int controlField = getControlField();
 
-        sendFrame(fd, new_frame, new_frame_size + 1);       // Writes newly created frame (main frame with stuffing) into the file descriptor
-        
-        
-        /* STILL WORKING ON IMPLEMENTING
-        unsigned char ua_frame[5];
+            // define what program does depending on the Control Field Value
 
-        //state machine
-        while ((stM->currentState != STOP_MACHINE) && (alarmConfig.alarmEnabled == FALSE)) {
-            if (read(fd, ua_frame, 5) > 0) {            // if it reads a value apply switch function
-                switch (stM->currentState) {
-                    case START:
-                        if ()
-                }
+            if (controlField == C_RR0 || controlField == C_RR1) {
+                accepted = 1;
+                frameTransmitter = (frameTransmitterControl + 1) % 2; // ????
             }
+
+            // do other implementation of control field, REJ1 and REJ0, DISC, I1, I0
         }
 
-        */
+
 
     }
 
