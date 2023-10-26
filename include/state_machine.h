@@ -16,15 +16,14 @@ typedef enum {
 	A_RCV,			// Received Address Field
 	C_RCV,			// Received Control Field
 	BCC_OK,			// Received Independent Protection Field and is valid
-	STOP			// End State
+	STOP_MACHINE	// End State
 }State;
 
 
 // Defining Structure State Machine
 
-typedef struct {  // state needs to be set before hand
+typedef struct {  
 	State currentState;
-	unsigned char addressByte;
 }StateMachine;
 //some state machine functions
 
@@ -32,6 +31,7 @@ void stateChange(StateMachine* stM, State state); // changes the current state o
 
 void stateTransition(StateMachine* stM, unsigned char* frame, int size, unsigned char Address, unsigned char Control); // Address and Control depend on the role
 
+int getControlField(); // gets the value stored in control field of the frame
 
 
 #endif /* _STATE_MACHINE_H_ */

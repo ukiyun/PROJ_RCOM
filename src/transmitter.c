@@ -28,10 +28,10 @@ int llOpenTransmitter(LinkLayer connectionParameters) {
 			int bytes1 = read(fd, mainFrame.frame, mainFrame.size);
 			stateTransition(stM, mainFrame.frame, bytes1, A_RX, C_UA);
 			
-			if (stM->currentState == STOP) {
+			if (stM->currentState == STOP_MACHINE) {
 				finish = TRUE;
-				printf("Transmitter Successfully Opened") :
-					return 0;
+				printf("Transmitter Successfully Opened");
+				return 0;
 			}
 			alarmConfig.nreTransmissions--;
 		}

@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <signal.h>
 
+
+volatile int STOP;
+
+
 // Frame Holder
 extern struct mainFrame_struct {
 	unsigned char frame[MAX_PAYLOAD];
@@ -34,9 +38,9 @@ void alarmHandler();
 
 int SerialPortHandling(char serialPortName[50]); // Handling the SerialPort, based on TP1 and TP2 files
 
-void buildSupUnnFrames(unsigned char Address, unsigned char Control);    // Builds Supervision and Unnumbered Frames
+void buildSupFrame(unsigned char Address, unsigned char Control);    // Builds Supervision and Unnumbered Frames
 
-void buildInfoFrames(); // Builds Information Frame
+void buildInfoFrame(unsigned char Address, const unsigned char* packet, int packetSize); // Builds Information Frame
 
 void sendFrame(int fd, unsigned char* frame, int n);
 
