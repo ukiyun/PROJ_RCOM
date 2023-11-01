@@ -34,8 +34,7 @@
 #define C_DISC 0x0B		// sent by the transmitter to terminate the connection
 
 #define ESCAPE 0x7D		// byte stuffing
-#define BAUDRATE B38400 // baud-rate
-
+#define BAUDRATES B38400 // baud-rate
 
 ////////////////////////////////////////////////
 // APPLICATION LAYER MACROS

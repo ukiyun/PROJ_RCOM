@@ -6,20 +6,96 @@
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
 
-int frameTransmitterControl = 0;    // Control that the transmitter is sending
-int frameReceiverControl = 1;       // Control that the receiver is expecting
+volatile int STOP = FALSE;
+
 
 ////////////////////////////////////////////////
-// LLOPEN
+// LLOPEN 
 ////////////////////////////////////////////////
+int llOpenTransmitter(LinkLayer connectionParameters) {
+
+    (void)signal(SIGALRM, alarmHandler);
+
+    buildSupFrame(A_TX, C_SET); // sets initial frame
+
+    sendFrame(mainFrame.fd, mainFrame.frame, mainFrame.size);    // send initial frame
+
+    alarmConfig.alarmEnabled = FALSE;
+
+    int finish = FALSE;
+
+    StateMachine* stM = (StateMachine*)malloc(sizeof(StateMachine));
+
+    unsigned char received_ua_frame[5];
+
+    while (finish == FALSE && alarmConfig.Counter < alarmConfig.nreTransmissions) {
+        stateChange(stM, START);	// change machine state to start, beginning of new frame
+
+        int bytes1 = read(mainFrame.fd, received_ua_frame, mainFrame.size);
+        stateTransition(stM, mainFrame.frame, bytes1, A_TX, C_UA);
+
+        if (stM->currentState == STOP_MACHINE) {
+            alarm(0);
+            finish = TRUE;
+            printf("Transmitter Successfully Opened");
+        }
+        else {
+            if (alarmConfig.alarmEnabled == FALSE) {
+                sendFrame(mainFrame.fd, mainFrame.frame, mainFrame.size);   // reattempts to send frame again
+                alarmConfig.alarmEnabled = TRUE;
+            }
+        }
+        alarmConfig.Counter++;
+    }
+
+    return mainFrame.fd;
+}
+
+int llOpenReceiver(LinkLayer connectionParameters) {
+
+    unsigned char received_frame[5];
+
+    StateMachine* stM = (StateMachine*)malloc(sizeof(StateMachine));
+    stateChange(stM, START); // change machine state to start, beginning of new frame
+    sleep(4);
+
+    while (STOP == FALSE) {
+        int bytes = read(mainFrame.fd, received_frame, 5);
+        
+        stateTransition(stM, received_frame, bytes, A_TX, C_SET);
+
+        if (stM->currentState == STOP_MACHINE) {
+            STOP = TRUE;
+        }
+    }
+
+    sendSup(mainFrame.fd, A_RX, C_UA);
+    free(stM);  // deallocates the memory previously allocated by malloc
+    printf("Receiver Successfully Opened");
+    return mainFrame.fd;
+}
+
+
 int llopen(LinkLayer connectionParameters){
-    LinkLayerRole role = connectionParameters.role;
-    if (role == LlTx) {
-        return llOpenTransmitter(connectionParameters);
+
+    if (SerialPortHandling(connectionParameters.serialPort) < 0) {
+        fprintf(stderr, "Connection Error!\n");
+        return -1;
     }
-    else {
-        return llOpenReceiver(connectionParameters);
+   
+    alarmConfig.Counter = 0;
+    alarmConfig.nreTransmissions = connectionParameters.nRetransmissions;
+    alarmConfig.timeout = connectionParameters.timeout;
+    LinkLayerRole roles = connectionParameters.role;
+
+    switch (roles) {
+        case LlTx:
+            llOpenTransmitter(connectionParameters);
+        case LlRx:
+            llOpenReceiver(connectionParameters);
     }
+
+    return mainFrame.fd;
 }
 
 ////////////////////////////////////////////////
@@ -27,51 +103,49 @@ int llopen(LinkLayer connectionParameters){
 ////////////////////////////////////////////////
 
 
-int llwrite(int fd, const unsigned char* buf, int bufSize)
+int llwrite(int fd,const unsigned char* buf, int bufSize)
 {
     printf("Attempting to write...");
     // buf = array of characters to transmit
 
     buildInfoFrame(A_TX, buf, bufSize);
 
-    unsigned char* new_frame = (unsigned char*)malloc(bufSize * 2);
+    unsigned char new_frame[2* bufSize];
 
     int new_frame_size = stuffing(mainFrame.frame, new_frame, mainFrame.size);  // Stuffed frame
 
-    sendFrame(fd, new_frame, new_frame_size + 1); // writing the frame in the file descriptor
-
-    newAlarm(); // resets alarmCounter but nRetransmissions maintains also changes alarmEnable to FALSE
+    sendFrame(mainFrame.fd, new_frame, new_frame_size + 1); // writing the frame in the file descriptor
     
     unsigned char control_field[5];
 
     STOP = FALSE;
 
     while (STOP == FALSE && alarmConfig.Counter<alarmConfig.nreTransmissions){
-        int read_bytes = read(fd, control_field, 5);
+        int read_bytes = read(mainFrame.fd, control_field, 5);
 
         if (read_bytes && control_field[0] == FLAG && (control_field[1] == A_TX || control_field[1] == A_RX) && (control_field[2] == C_RR0 || control_field[2] == C_RR1) && control_field[3] == (control_field[1] ^ control_field[2]) && control_field[4] == FLAG) {
             // if control field equals RR0 or RR1 (ready to receive)
             alarm(0);
             frameTransmitterControl = (frameTransmitterControl + 1) % 2;  // guarantees that the value of TransmitterControl is always 1 or 0
-            print("Written Successfully!");
-            STOP == TRUE;    // ready to receive ! 
+            printf("Written Successfully!");
+            STOP = TRUE;    // ready to receive ! 
         }
         else if (read_bytes && control_field[0] == FLAG && (control_field[1] == A_TX || control_field[1] == A_RX) && (control_field[2] == C_REJ0 || control_field[2] == C_REJ1) && control_field[3] == (control_field[1] ^ control_field[2]) && control_field[4] == FLAG) {
             // if control field equals REJ0 or REJ1 (receiver rejects information)
             alarm(0);
             printf("Information Frame rejected. Trying again...\n");
-            sendFrame(fd, new_frame, new_frame_size + 1);       // attempts to write the frame again
+            sendFrame(mainFrame.fd, new_frame, new_frame_size + 1);       // attempts to write the frame again
         }
         else {
             if (alarmConfig.alarmEnabled == FALSE) {
-                sendFrame(fd, new_frame, new_frame_size + 1);   // attempts to write the frame again
+                sendFrame(mainFrame.fd, new_frame, new_frame_size + 1);   // attempts to write the frame again
             }
         }
     }
 
     if (alarmConfig.Counter >= alarmConfig.nreTransmissions) {
-        perror("Alarm Counter surpassed the possible number of Retransmissions");
-        llclose(fd, 0);
+        fprintf(stderr, "Alarm Counter surpassed the possible number of Retransmissions");
+        llclose(mainFrame.fd, 0);
         return -1;      // negative value because of the occurrence of an error
     }
 
@@ -84,7 +158,6 @@ int llwrite(int fd, const unsigned char* buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(int fd, unsigned char *packet)
 {
-    newAlarm();
     printf("Attempting to read...");
 
     StateMachine* stMRead = (StateMachine*)malloc(sizeof(StateMachine));
@@ -105,7 +178,7 @@ int llread(int fd, unsigned char *packet)
         int disconnectControl = FALSE;
         unsigned char stuffedPayload[2000];
         while (MachineControl == FALSE) {
-            if (read(fd, &byte, 1) > 0) {
+            if (read(mainFrame.fd, &byte, 1) > 0) {
                 switch (stMRead->currentState) {
                     case START:
                         if (byte == FLAG) {
@@ -220,10 +293,10 @@ int llread(int fd, unsigned char *packet)
                             printf("Detected the occurrence of errors in the data field. Retrying...");
                             // send rejected frame with REJ0 or REJ1
                             if (frameReceiverControl == 0) {
-                                sendSup(fd, A_RX, C_REJ0);
+                                sendSup(mainFrame.fd, A_RX, C_REJ0);
                             }
                             else {
-                                sendSup(fd, A_RX, C_REJ1);
+                                sendSup(mainFrame.fd, A_RX, C_REJ1);
                             }
                         }
                         break;
@@ -239,17 +312,17 @@ int llread(int fd, unsigned char *packet)
                         break;
                     case STOP_MACHINE:
                         if (frameReceiverControl == 0) {    // sends rr1 or rr0
-                            sendSup(fd, A_TX, C_RR0);          
+                            sendSup(mainFrame.fd, A_TX, C_RR0);          
                         }
                         else {
-                            sendSup(fd, A_RX, C_RR1);
+                            sendSup(mainFrame.fd, A_RX, C_RR1);
                         }
                         frameReceiverControl = (frameReceiverControl + 1) & 2;
                         MachineControl = TRUE;
                         STOP = TRUE;
                         break;
                     case STOP_MACHINE_DC:
-                        sendSup(fd, A_RX, control_Field);   // send disconnection frame to terminate connection
+                        sendSup(mainFrame.fd, A_RX, control_Field);   // send disconnection frame to terminate connection
                         MachineControl = TRUE;
                         STOP = TRUE;
                         break;
@@ -274,25 +347,22 @@ int llread(int fd, unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int fd, int showStatistics)
 {
-    (void)signal(SIGALRM, alarmHandler);
 
     StateMachine* stMClose= (StateMachine*)malloc(sizeof(StateMachine));
     stateChange(stMClose, START);
 
-    unsigned char dc_frame[5];      // disconnect frame
-
-    // DC frame values
+    (void)signal(SIGALRM, alarmHandler);
     
     buildSupFrame(A_TX, C_DISC);        // creates frame with control field equal to the control disconnect value
     
-    sendFrame(fd, mainFrame.frame, 5);    
+    sendFrame(mainFrame.fd, mainFrame.frame, 5);    
 
     // receive disconnect order
 
     unsigned char byte;
 
     while (stMClose->currentState != STOP_MACHINE) {
-        if (read(fd, &byte, 1)) {
+        if (read(mainFrame.fd, &byte, 1)) {
             switch (stMClose->currentState) {
                 case START:
                     if (byte == FLAG) {
@@ -348,8 +418,8 @@ int llclose(int fd, int showStatistics)
 
     // send ua disconnect frame
 
-    sendSup(fd, A_TX, C_UA);
+    sendSup(mainFrame.fd, A_TX, C_UA);
     alarm(0);
 
-    return close(fd);
+    return close(mainFrame.fd);
 }

@@ -1,10 +1,12 @@
 #include "utilities.h"
 
-STOP = FALSE;
+
 
 struct mainFrame_struct mainFrame;
 struct alarmConfig_struct alarmConfig;
 
+int frameTransmitterControl = 0;
+int frameReceiverControl = 0;
 
 
 void newAlarm(){
@@ -12,18 +14,24 @@ void newAlarm(){
     alarmConfig.Counter = 0;
 }
 
-void alarmHandler() {
-    alarmConfig.alarmEnabled = TRUE;
+void alarmHandler(int signal) {
     alarmConfig.Counter++;
-    print("Alarm %d triggered.\n", alarmConfig.Counter);
+    if (write(mainFrame.fd, mainFrame.frame, mainFrame.size) != mainFrame.size) {       // attempts to write data out of a buffer
+        return;
+    }
+    alarm(alarmConfig.timeout);
+
+    // if Alarm Counter > nRetransmissions, function will fail to write
+    if (alarmConfig.Counter <= alarmConfig.nreTransmissions) {
+        printf("Alarm %d triggered.\n", alarmConfig.Counter);
+    }
 }
 
 
 int SerialPortHandling(char serialPortName[50]) {
-
     //open serial port device for reading and writing
-    int fd = open(serialPortName, O_RDWR | O_NOCTTY);
-    if (fd < 0) {
+    mainFrame.fd = open(serialPortName, O_RDWR | O_NOCTTY);
+    if (mainFrame.fd < 0) {
         perror(serialPortName);
         exit(-1);
     }
@@ -32,7 +40,7 @@ int SerialPortHandling(char serialPortName[50]) {
     struct termios newtio;
 
     // save current port settings
-    if (tcgetattr(fd, &oldtio) == -1) {
+    if (tcgetattr(mainFrame.fd, &oldtio) == -1) {
         perror("tcgetattr");
         exit(-1);
     }
@@ -40,7 +48,7 @@ int SerialPortHandling(char serialPortName[50]) {
     //clear struct for new port settings
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATES | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -49,17 +57,17 @@ int SerialPortHandling(char serialPortName[50]) {
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
     newtio.c_cc[VMIN] = 5; // Blocking read until 5 chars received
 
-    tcflush(fd, TCIOFLUSH); // Flushes data received but not read
+    tcflush(mainFrame.fd, TCIOFLUSH); // Flushes data received but not read
 
     // Set new port settings
-    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
+    if (tcsetattr(mainFrame.fd, TCSANOW, &newtio) == -1) {
         perror("tcsetattr");
         exit(-1);
     }
 
     printf("New termios structure set\n");
 
-    return 1;
+    return 0;
 
 }
 
@@ -74,8 +82,16 @@ void buildSupFrame(unsigned char Address, unsigned char Control) {
 
 }
 
+unsigned char BCC2(const unsigned char* data, int size) {
+    unsigned char bcc = data[0];
+    for (int i = 1; i < size; i++) { // iterate through the data, D1 XOR D2 XOR D3 ... XOR Dn
+        bcc = bcc ^ data[0];        // XOR operation
+    }
 
-void buildInfoFrame(unsigned char Address, const unsigned char *packet, int packetSize) {
+    return bcc;
+}
+
+void buildInfoFrame(unsigned char Address, const unsigned char* packet, int packetSize) {
     // Header
     mainFrame.frame[0] = FLAG;
     mainFrame.frame[1] = Address;
@@ -100,7 +116,6 @@ void buildInfoFrame(unsigned char Address, const unsigned char *packet, int pack
 
 void sendFrame(int fd, unsigned char* frame, int n) {  //sends a frame of data over communication channel (fd = File Descriptor)
     write(fd, frame, n); // writes n bytes from the frame contents in file descriptor
-    sleep(1);  // wait until bytes have been written;
     alarm(alarmConfig.timeout);     
 }
 
@@ -110,23 +125,8 @@ int sendSup(int fd, unsigned char Address, unsigned char Control) {
 }
 
 
-unsigned char BCC2(unsigned char* data, int size) {
-    unsigned char bcc = data[0];
-    for (int i = 1; i < size; i++) { // iterate through the data, D1 XOR D2 XOR D3 ... XOR Dn
-        bcc = bcc ^ data[0];        // XOR operation
-    }
-    
-    return bcc;
-}
 
 int stuffing(unsigned char* frame, unsigned char* stuffedFrame,int frameSize) {
-    unsigned char* stuffedFrame = (unsigned char*)malloc(frameSize * 2 + 6);    //since stuffedFrame size is unknown we use malloc
-
-    if (stuffedFrame == NULL) {  // if memory allocation doesn't work
-        fprintf(stderr, "Memory allocation failed.\n"); // stderr = stream used to output error messages or diagnostics
-        exit(1);
-    }
-
     int stuffedIndex = 0;
 
     for (int i = 0; i < frameSize; i++) {
@@ -142,48 +142,29 @@ int stuffing(unsigned char* frame, unsigned char* stuffedFrame,int frameSize) {
             stuffedFrame[stuffedIndex++] = frame[i];
         }
     }
-
-    stuffedFrame = realloc(stuffedFrame, stuffedIndex * sizeof(unsigned char));     // attempting to reallocate the given area of memory, since now we know the certain size of stuffedFrame
-
-    if (stuffedFrame == NULL) { // if memory reallocation doesn't work
-        fprintf(stderr, "Memory reallocation failed\n");
-        exit(1);
-    }
-
     return stuffedIndex;
 
 }
 
-int destuffing(const unsigned char* stuffedFrame, unsigned char* destuffedFrame, int destuffedSize) {
-    unsigned char* destuffedFrame = (unsigned char*)malloc(destuffedSize * 2 + 6);    //since stuffedFrame size is unknown we use malloc
-
-    if (destuffedFrame == NULL) {  // if memory allocation doesn't work
-        fprintf(stderr, "Memory allocation failed.\n"); // stderr = stream used to output error messages or diagnostics
-        exit(1);
-    }
-    
+int destuffing(const unsigned char* stuffedFrame, unsigned char* destuffedFrame, int stuffedSize) {
+    int destuffedFrameAux[BLOCK_SIZE + 1];
     int destuffedIndex = 0;
 
-    for (int i = 0; i < destuffedSize; i++) {
+    for (int i = 0; i < stuffedSize; i++) {
         if (stuffedFrame[i] == ESCAPE && stuffedFrame[i + 1] == 0x5E) {
-            destuffedFrame[destuffedIndex++] = FLAG;
+            destuffedFrameAux[destuffedIndex++] = FLAG;
         }
-        else if (stuffedFrame[i] == ESCAPE && stuffedFrame == 0x5D) {
-            destuffedFrame[destuffedIndex++] = ESCAPE;
+        else if (stuffedFrame[i] == ESCAPE && stuffedFrame[i + 1] == 0x5D) {
+            destuffedFrameAux[destuffedIndex++] = ESCAPE;
         }
         else {
-            destuffedFrame[destuffedIndex++] = stuffedFrame[i];
+            destuffedFrameAux[destuffedIndex++] = stuffedFrame[i];
         }
     }
 
-    destuffedFrame = realloc(destuffedFrame, destuffedIndex * sizeof(unsigned char));     // attempting to reallocate the given area of memory, since now we know the certain size of stuffedFrame
-
-    if (destuffedFrame == NULL) { // if memory reallocation doesn't work
-        fprintf(stderr, "Memory reallocation failed\n");
-        exit(1);
-    }
+    memcpy(destuffedFrame, destuffedFrameAux, destuffedIndex-1);
 
 
-    return destuffedIndex;
+    return destuffedIndex-1;
 
 }

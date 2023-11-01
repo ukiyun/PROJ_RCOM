@@ -2,7 +2,6 @@
 #define _STATE_MACHINE_H_
 
 #include <stdio.h>
-#include "macros.h"
 #include "utilities.h"
 
 /*

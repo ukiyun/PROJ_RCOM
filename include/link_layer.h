@@ -8,8 +8,6 @@
 #include "macros.h"
 #include "state_machine.h"
 #include "utilities.h"
-#include "receiver.h"
-#include "transmitter.h"
 
 // C libraries
 #include <fcntl.h>

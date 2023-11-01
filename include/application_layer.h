@@ -17,14 +17,4 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
-unsigned char* sendControlPacket(const unsigned int controlField, const char* filename, long int fileSize, unsigned int* packetSize); // Signals the Start and End of File Transfer
-
-unsigned char* sendDataPacket(const unsigned int controlField, unsigned char* data, int dataSize, int *packetSize);    // Contains fragments of the file to be transmitted
-
-unsigned char* readControlPacket(unsigned char* packet, int size, unsigned long int* fileSize);
-
-int sendFileTX(LinkLayer connectionParameters, const char* filename);
-
-int getFileRX(LinkLayer connectionParameters);
-
 #endif // _APPLICATION_LAYER_H_

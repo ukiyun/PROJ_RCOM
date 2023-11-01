@@ -61,39 +61,49 @@ unsigned char* sendDataPacket(unsigned char* packetData, int dataSize, int* pack
     return dataPacket;
 }
 
-unsigned char* readControlPacket(unsigned char* packet, int size, unsigned long int* filenameSize) {
+unsigned char* readControlPacket(unsigned char* packet, long* size, unsigned long int* filenameSize) {
     unsigned char fileSizeBytes = packet[6];    // V value (number of octets indicated in L)
     unsigned char* fileSizeAuxiliary = (unsigned char*)malloc(fileSizeBytes);
     memcpy(fileSizeAuxiliary, packet + 7, fileSizeBytes); // copies file Size Auxiliary packet to the end of the Control Packet
 
     unsigned char fileNameBytes = packet[7 + fileSizeBytes + 1];
     unsigned char* fileName = (unsigned char*)malloc(fileNameBytes);
-    memcpy(fileNameBytes, packet + 7 + fileSizeBytes + 2, fileNameBytes);
+    memcpy(&fileNameBytes, packet + 7 + fileSizeBytes + 2, fileNameBytes);
     *filenameSize = fileNameBytes;
     return fileName;
+}
+
+unsigned char* getInfo(FILE* fileReceived, long int fileSize) {
+    unsigned char* data = (unsigned char*)malloc(sizeof(unsigned char) * fileSize);         // creates data array with the size of the file
+    fread(data, sizeof(unsigned char), fileSize, fileReceived);         // reads the data from the fileReceived stream, into the array data
+    return data;
+}
+
+void readDataPacket(const unsigned char* packet, const unsigned int packetSize, unsigned char* frame) {
+    memcpy(frame, packet + 4, packetSize - 4);
+    frame += packetSize;
 }
 
 int sendFileTX(const char* filename) {
     FILE* fileSent = fopen(filename, "rb");		// Opens non-text file for reading
 
     if (fileSent == NULL) {
-        perror("File not found\n");		//dealing with the case of no file
-        exit(-1);
+        fprintf(stderr, "File not found\n");		//dealing with the case of no file
+        return -1;
     }
 
-    int fileSentStart = ftell(fileSent); // saves the position in which the fileSent starts
     fseek(fileSent, 0, SEEK_END);	//  sets the file position indicator to the end of the fileSent
     long fileSentSize = ftell(fileSent);	// returns the current value of the position of the position indicator, since its at the end, we get the fileSize
-    fseek(fileSent, fileSentSize, SEEK_SET);	// sets the file position indicator in the beginning of the fileSent
+    fseek(fileSent, 0, SEEK_SET);	// sets the file position indicator in the beginning of the fileSent
 
     printf("Sent File has the following size: %ld\n", fileSentSize);
 
-    int startControlPacketSize;
+    unsigned int startControlPacketSize;
     unsigned char* startControlPacket = sendControlPacket(CONTROL_START, filename, fileSentSize, &startControlPacketSize);
 
     if (llwrite(mainFrame.fd, startControlPacket, startControlPacketSize) == -1) {  //llwrite error
-        perror("Error while sending Start Control Packet\n");
-        exit(-1);
+        fprintf(stderr, "Error while sending Start Control Packet\n");
+        return -1;
     }
 
     printf("Start Control Packet Sent!");
@@ -105,20 +115,18 @@ int sendFileTX(const char* filename) {
     while ((sentDataSize = fread(sentData, 1, MAX_PAYLOAD_SIZE - 3, fileSent)) > 0) {   // reads data from the given stream fileSent and saves them to sentData / reads until there's no more data
         unsigned char* dataPacket = sendDataPacket(sentData, sentDataSize, &dataPacketSize);
         if (llwrite(mainFrame.fd, dataPacket, dataPacketSize) == -1) {
-            perror("Error while sending Data Packet\n");
-            exit(-1);
+            fprintf(stderr, "Error while sending Data Packet\n");
+            return -1;
         }
     }
-    int endControlPacketSize;
+    unsigned int endControlPacketSize;
     unsigned char* endControlPacket = sendControlPacket(CONTROL_END, filename, fileSentSize, &endControlPacketSize);
 
     if (llwrite(mainFrame.fd, endControlPacket, endControlPacketSize) == -1) {  //llwrite error
-        perror("Error while sending End Control Packet\n");
-        exit(-1);
+        fprintf(stderr, "Error while sending End Control Packet\n");
+        return -1;
     }
 
-
-    fclose(fileSent);
     return 0;
 
 }
@@ -127,19 +135,21 @@ int sendFileTX(const char* filename) {
 int getFileRX(const char* filename) {
     unsigned char* packet = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
     long packetSize;
-    long fileNameSize = 0;
-    char packetFileName = readControlPacket(packet, packetSize, fileNameSize);
+    unsigned long int *fileNameSize = 0;
+    unsigned char* packetFileName = readControlPacket(packet, &packetSize, fileNameSize);    // unused?
 
-    if (llwrite(mainFrame.fd, packet, packetSize) == -1) {  //llwrite error
-        perror("Error while sending Start Control Packet\n");
-        exit(-1);
+    if (llwrite(mainFrame.fd, (const unsigned char*)packet, packetSize) == -1) {  //llwrite error
+        fprintf(stderr, "Error while sending Start Control Packet\n");
+        return -1;
     }
 
-    FILE* fileGot = fopen(filename,"wb");
+    printf("Opening File with Name: %s\n", packetFileName);
+
+    FILE* fileGot = fopen(filename,"wb+");
 
     if (fileGot == NULL){
-        perror("File not found\n");		//dealing with the case of no file
-        exit(-1);
+        fprintf(stderr, "File not found\n");		//dealing with the case of no file
+        return -1;
     }
 
     int fileSize;
@@ -152,8 +162,8 @@ int getFileRX(const char* filename) {
             break;
         }
         if (packet[0] != CONTROL_DATA) {
-            perror("Invalid Data Packet\n");
-            exit(-1);
+            fprintf(stderr, "Invalid Data Packet\n");
+            return -1;
         }
 
         unsigned long int dataPacketSize = packet[1] * OCTET + packet[2];
@@ -163,12 +173,14 @@ int getFileRX(const char* filename) {
         memcpy(dataPacketBytes, packet + 3, fileSize);  
         
         if (fwrite(dataPacketBytes, sizeof(unsigned char*), dataPacketSize, fileGot) != dataPacketSize) {
-            perror("Failed to write to file\n");
-            exit(-1);
+            fprintf(stderr, "Failed to write to file\n");
+            return -1;
         }
 
         free(dataPacketBytes);
     }
+
+    printf("File Received!");
 
     fclose(fileGot);
 
@@ -180,31 +192,30 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 {
     
     if (strncmp(serialPort, "/dev/ttyS", 9) != 0) {     // compares Serial Port String with /dev/ttyS, 0 if strings are equal.
-        perror("Invalid Serial Port: %s\n", serialPort);
+        fprintf(stderr, "Invalid Serial Port: %s\n", serialPort);
         return;
     }
 
     if ((strcmp(role, "tx") != 0) && (strcmp(role, "rx") != 0)) {       // check role names
-        perror("Invalid role: %s\n", role);
+        fprintf(stderr, "Invalid role: %s\n", role);
         return;
     }
 
     LinkLayer connectionParameters;
-    strcpy(connectionParameters.serialPort, serialPort, 50);      // copies serialPort given into to link layer Serial Port
-
-    if (role == "tx") {
-        connectionParameters.role = "LlTx";
+    strcpy(connectionParameters.serialPort, serialPort);      // copies serialPort given into to link layer Serial Port
+    if (strcmp(role,(const char*)"tx")) {
+        connectionParameters.role = LlTx;
     }
     else {
-        connectionParameters.role = "LlRx";
+        connectionParameters.role = LlRx;
     }
 
     connectionParameters.baudRate = baudRate;
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
 
-    if (llopen(connectionParameters) == -1) {
-        perror("Failed trying to establish a connection\n");
+    if (llopen(connectionParameters) < 0) {
+        fprintf(stderr, "Failed trying to establish a connection\n");
         return;
     }
 
@@ -212,21 +223,21 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     if (connectionParameters.role == LlTx) {
         if (sendFileTX(filename) == -1) {
-            perror("Failed to Send File\n");
+            fprintf(stderr, "Failed to Send File\n");
             return;
         }
         printf("File Sent!");
     }
     else {
         if (getFileRX(filename) == -1) {
-            perror("Failed to Receive File\n");
+            fprintf(stderr, "Failed to Receive File\n");
             return;
         }
         printf("File Received!");
     }
 
-    if (llclose(0) == -1) {
-        perror("Failed trying to close connection\n");
+    if (llclose(mainFrame.fd, 0) == -1) {
+        fprintf(stderr, "Failed trying to close connection\n");
         return;
     }
 
