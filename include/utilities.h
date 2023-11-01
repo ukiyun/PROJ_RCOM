@@ -4,6 +4,7 @@
 
 #include "macros.h"
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,8 @@
 
 volatile int STOP;
 
+int frameTransmitterControl;    // Control that the transmitter is sending
+int frameReceiverControl;       // Control that the receiver is expecting
 
 // Frame Holder
 extern struct mainFrame_struct {
@@ -48,8 +51,8 @@ int sendSup(int fd, unsigned char Address, unsigned char C);
 
 unsigned char BCC2(unsigned char* frame, int size); // Field to detect the occurrence of errors in the data field
 
-unsigned char* stuffing(const unsigned char* frame, int frameSize, int* newSize); // Byte Stuffing Mechanism
+int stuffing(const unsigned char* frame, int frameSize, int* newSize); // Byte Stuffing Mechanism
 
-unsigned char* destuffing(const unsigned char* stuffedFrame, int frameSize, int* newSize); // Reverse Byte Stuffing Mechanism
+int destuffing(const unsigned char* stuffedFrame, int frameSize, int* newSize); // Reverse Byte Stuffing Mechanism
 
 #endif /* _UTILITIES_H_ */

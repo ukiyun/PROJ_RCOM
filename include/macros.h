@@ -2,6 +2,9 @@
 #ifndef _MACROS_H_
 #define _MACROS_H_
 
+////////////////////////////////////////////////
+// LINK LAYER MACROS
+////////////////////////////////////////////////
 
 //boolean values
 #define TRUE 1
@@ -9,7 +12,7 @@
 
 #define BUF_SIZE 256
 #define BLOCK_SIZE 1024
-#define MAX_PAYLOAD (BLOCK_SIZE*2+6)   // Stuffed Frame Size
+#define MAX_PAYLOAD (BLOCK_SIZE*2+2)   // Stuffed Frame Size
 
 // buffer indexes
 #define FLAG 0x7E		// Start or End of frame
@@ -33,5 +36,19 @@
 #define ESCAPE 0x7D		// byte stuffing
 #define BAUDRATE B38400 // baud-rate
 
+
+////////////////////////////////////////////////
+// APPLICATION LAYER MACROS
+////////////////////////////////////////////////
+
+#define CONTROL_DATA 0x01		// Data Packet Control Field
+#define CONTROL_START 0x02		// Control Packet Control Field
+#define CONTROL_END 0x03		// Control Packet Control Field
+
+//TLV
+#define FILE_SIZE 0x00
+#define FILE_NAME 0x01
+
+#define OCTET 256
 
 #endif /* _MACROS_H_ */

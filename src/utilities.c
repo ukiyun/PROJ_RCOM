@@ -5,8 +5,6 @@ STOP = FALSE;
 struct mainFrame_struct mainFrame;
 struct alarmConfig_struct alarmConfig;
 
-int frameTransmitterControl;    // Control that the transmitter is sending
-int frameReceiverControl;       // Control that the receiver is expecting
 
 
 void newAlarm(){
