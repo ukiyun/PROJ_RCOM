@@ -28,13 +28,14 @@
 #define C_REJ0 0x01		// indication sent by the receiver that it has rejected an information frame nº 0 (detected an error)
 #define C_REJ1 0x81		// indication sent by the receiver that it has rejected an information frame nº 1 (detected an error)
 
+#define C_RR(n) ((n<<7) | 0x05)
+#define C_REJ(n) ((n<<7) | 0x01)
 // commands
 #define C_I0 0x00		// I = Information frame number 0
 #define C_I1 0x40		// I = Information frame number 1
 #define C_DISC 0x0B		// sent by the transmitter to terminate the connection
 
 #define ESCAPE 0x7D		// byte stuffing
-#define BAUDRATES B38400 // baud-rate
 
 ////////////////////////////////////////////////
 // APPLICATION LAYER MACROS

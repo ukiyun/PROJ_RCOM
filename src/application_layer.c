@@ -5,6 +5,14 @@
 
 #define MAX_PAYLOAD_SIZE 1024
 
+struct mainFrame_struct {
+    unsigned char frame[MAX_PAYLOAD];
+    size_t size;
+    int fd;
+};
+
+extern struct mainFrame_struct mainFrame;
+
 unsigned char* sendControlPacket(const unsigned int controlField, const char* filename, long int fileSize, unsigned int* packetSize) {
     
     const unsigned int L1 = sizeof(fileSize);
@@ -92,9 +100,10 @@ int sendFileTX(const char* filename) {
         return -1;
     }
 
+    int fileStart = ftell(fileSent);
     fseek(fileSent, 0, SEEK_END);	//  sets the file position indicator to the end of the fileSent
     long fileSentSize = ftell(fileSent);	// returns the current value of the position of the position indicator, since its at the end, we get the fileSize
-    fseek(fileSent, 0, SEEK_SET);	// sets the file position indicator in the beginning of the fileSent
+    fseek(fileSent, fileStart, SEEK_SET);	// sets the file position indicator in the beginning of the fileSent
 
     printf("Sent File has the following size: %ld\n", fileSentSize);
 

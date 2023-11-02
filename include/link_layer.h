@@ -6,9 +6,9 @@
 
 // user made headers
 #include "macros.h"
-#include "state_machine.h"
+/*#include "state_machine.h"
 #include "utilities.h"
-
+*/
 // C libraries
 #include <fcntl.h>
 #include <stdio.h>
