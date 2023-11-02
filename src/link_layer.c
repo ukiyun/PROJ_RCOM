@@ -15,6 +15,7 @@ int frameReceiverControl = 1;
 // Frame Structure
 ////////////////////////////////////////////////
 
+/*
 struct mainFrame_struct {
     unsigned char frame[MAX_PAYLOAD];
     size_t size;
@@ -22,11 +23,11 @@ struct mainFrame_struct {
 };
 
 struct mainFrame_struct mainFrame;
-
+*/
 ////////////////////////////////////////////////
 // Alarm
 ////////////////////////////////////////////////
-
+/*
 struct alarmConfigStruct {
     int Counter;
     int timeout;
@@ -35,11 +36,17 @@ struct alarmConfigStruct {
 };
 
 struct alarmConfigStruct alarmConfig;   // Initialize Alarm
+*/
+
+int alarmEnabled = FALSE;
+int alarmCounter = 0;
+int alarmTimeout;
+int nRetransmissions;
 
 void alarmHandler(int signal) {
-    alarmConfig.Counter++;
-    alarmConfig.Enabled = FALSE;
-    printf("Alarm %d triggered.\n", alarmConfig.Counter);
+    alarmEnabled = FALSE;
+    alarmCounter++;
+    printf("Alarm %d triggered.\n", alarmCounter);
 }
 
 ////////////////////////////////////////////////
@@ -61,6 +68,7 @@ enum State{
 };
 
 
+/*
 int stateMachine( unsigned char Address, unsigned char Control) {
     unsigned char receive_frame[5];
     
@@ -134,16 +142,16 @@ int stateMachine( unsigned char Address, unsigned char Control) {
 }
 
 
-
+*/
 ////////////////////////////////////////////////
 // Frame Functions
 ////////////////////////////////////////////////
 
 void sendFrame(int fd, unsigned char* frame, int size) {  //sends a frame of data over communication channel (fd = File Descriptor)
     write(fd, frame, size); // writes n bytes from the frame contents in file descriptor
-    alarm(alarmConfig.timeout);
+    alarm(alarmTimeout);
 }
-
+/*
 void buildSupervisionFrame(unsigned char Address, unsigned char Control) {
     // building Supervision frame into mainFrame struct 
     mainFrame.size = 5;
@@ -153,11 +161,12 @@ void buildSupervisionFrame(unsigned char Address, unsigned char Control) {
     mainFrame.frame[3] = Address ^ Control;
     mainFrame.frame[4] = FLAG;
 }
+*/
 
 int sendSupervision(int fd, unsigned char Address, unsigned char Control) {
     // write the supervision frame in file descriptor
-    buildSupervisionFrame(Address, Control);
-    return (write(mainFrame.fd, mainFrame.frame, 5));
+    unsigned char superVision[5] = { FLAG, Address, Control, Address ^ Control, FLAG };
+    return (write(fd, superVision, 5));
 }
 
 unsigned char BCC2(const unsigned char* data, int dataSize) {
@@ -167,7 +176,7 @@ unsigned char BCC2(const unsigned char* data, int dataSize) {
     }
     return bcc2_frame;
 }
-
+/*
 void buildInformationFrame(unsigned char Address, const unsigned char* packet, int packetSize) {
     mainFrame.size = packetSize + 5;        // size of the data plus the HEADER AND TRAILER
     // HEADER
@@ -193,6 +202,8 @@ void buildInformationFrame(unsigned char Address, const unsigned char* packet, i
     
     mainFrame.size = nextIndex;
 }
+
+*/
 ////////////////////////////////////////////////
 // STUFFING
 ////////////////////////////////////////////////
@@ -249,10 +260,9 @@ int destuffing(unsigned char* stuffedFrame, unsigned char* destuffedFrame, int s
 
 int SerialPortHandling(const char* serialPortName, int baudRate) {    // arguments that will be obtained from LinkLayer struct
     // Function based on provided SerialPort function in LAB1 and LAB2
-
+    int fd;
     //open serial port device for reading and writing
-    mainFrame.fd = open(serialPortName, O_RDWR | O_NOCTTY);
-    if (mainFrame.fd < 0) {
+    if ((fd = open(serialPortName, O_RDWR | O_NOCTTY))< 0) {
         perror(serialPortName);
         return -1;
     }
@@ -261,7 +271,7 @@ int SerialPortHandling(const char* serialPortName, int baudRate) {    // argumen
     struct termios newtio;
 
     // save current port settings
-    if (tcgetattr(mainFrame.fd, &oldtio) == -1) {
+    if (tcgetattr(fd, &oldtio) == -1) {
         perror("tcgetattr");
         return -1;
     }
@@ -278,17 +288,17 @@ int SerialPortHandling(const char* serialPortName, int baudRate) {    // argumen
     newtio.c_cc[VTIME] = 0; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0; // Blocking read until 5 chars received
 
-    tcflush(mainFrame.fd, TCIOFLUSH); // Flushes data received but not read
+    tcflush(fd, TCIOFLUSH); // Flushes data received but not read
 
     // Set new port settings
-    if (tcsetattr(mainFrame.fd, TCSANOW, &newtio) == -1) {
+    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
         perror("tcsetattr");
         return -1;
     }
 
     printf("New termios structure set\n");
 
-    return 0;
+    return fd;
 
 }
 
@@ -299,66 +309,129 @@ int SerialPortHandling(const char* serialPortName, int baudRate) {    // argumen
 
 int llopen(LinkLayer connectionParameters) {
     //Opens file descriptor with Serial Port
-    int connectionControl = SerialPortHandling(connectionParameters.serialPort, connectionParameters.baudRate);
+    int fd;
 
     // dealing with errors derived from Serial Port connection
-    if (connectionControl< 0) {
+    if ((fd=SerialPortHandling(connectionParameters.serialPort, connectionParameters.baudRate))< 0) {
         perror("Connection Error");
         return -1;
     }
 
     //saving connectionParameters to created struct
-    alarmConfig.timeout = connectionParameters.timeout;
-    alarmConfig.nreTransmissions = connectionParameters.nRetransmissions;
+    alarmTimeout = connectionParameters.timeout;
+    nRetransmissions = connectionParameters.nRetransmissions;
 
     //llopen will do different tasks depending on the role
 
-    LinkLayerRole role = connectionParameters.role;
-
-    switch (role) {
-        case LlTx:
+    switch (connectionParameters.role) {
+        case LlTx: {
             (void)signal(SIGALRM, alarmHandler);
-            //building set buf into mainFrame.frame
-            buildSupervisionFrame(A_TX, C_SET);
+            //building set buf
 
-            sendFrame(mainFrame.fd, mainFrame.frame, mainFrame.size);    // sends set frame
+            unsigned char set_frame[5];
+            set_frame[0] = FLAG;
+            set_frame[1] = A_TX;
+            set_frame[2] = C_SET;
+            set_frame[3] = set_frame[1] ^ set_frame[2];
+            set_frame[4] = FLAG;
 
-            while (STOP == FALSE && alarmConfig.Counter < alarmConfig.nreTransmissions) {       // can't exceed the number of tries allowed by the program
+            sendFrame(fd, set_frame, 5);    // sends set frame
+
+            unsigned char received_ua_frame[5];
+
+            while (STOP == FALSE && alarmCounter < nRetransmissions) {       // can't exceed the number of tries allowed by the program
                 //receive 5 chars (bytes), ua connection and check for the values necessary
-                int stateMachineControl = stateMachine(A_TX, C_UA);
-                
-                if (stateMachineControl == 0) {
+                int byte = read(fd, received_ua_frame, 5);
+
+                //compare value in byte and received ua frame
+                // received frame should be : FLAG | A_TX | C_UA | A_TX ^ C_UA | FLAG
+                if (byte&& received_ua_frame[0] == FLAG && received_ua_frame[1] == A_TX && received_ua_frame[2] == C_UA && received_ua_frame[3] = (received_ua_frame[1] ^ received_ua_frame[2]) && received_ua_frame[4] == FLAG) {
                     alarm(0);
                     STOP = TRUE;
                 }
                 else {
-                    if (alarmConfig.Enabled == FALSE) {
-                        fprintf(stderr, "Error while receiving ua frame. Retrying...");
-                        sendFrame(mainFrame.fd, mainFrame.frame, mainFrame.size);    // sends set frame again
-                        alarmConfig.Enabled = TRUE;
-                    }                    
+                    if (alarmEnabled == FALSE) {    // in case received ua_frame is not correct
+                        sendFrame(fd, set_frame, 5); // reattempts to send frame to file descriptor
+                        alarmEnabled = TRUE;
+                    }
                 }
             }
 
-            return mainFrame.fd;
+            return fd;
 
-        case LlRx:
-            
-            if (stateMachine(A_TX, C_SET) == 1) {
-                fprintf(stderr, "Error while receiving ua frame. Retrying...");
-            }
-            else {
-                sendSupervision(mainFrame.fd, A_RX, C_UA);
-                break;
-            }
+        }
+        case LlRx: {
 
-        default:
-            break;
+            unsigned char* receive_frame[5];   // frame to be received
 
+            enum State currentState = START;   // sets state machine to the beggining
+
+            while (STOP == FALSE) {
+                int bytes = read(fd, receive_frame, 5);
+
+                if (alarmCounter > nRetransmissions) {
+                    printf("Number of tries exceeded\n");
+                    return 1;
+                }
+
+                for (int i = 0; i < bytes; i++) {   // iterate over received_frame
+                    switch (currentState) {
+                        case START:
+                            if (receive_frame[i] == FLAG) {     // if flag, move on to next stage in state machine
+                                currentState = FLAG_RCV;
+                            }
+                            break;
+                        case FLAG_RCV:
+                            if (receive_frame[i] == A_TX) {
+                                currentState = A_RCV;
+                            }
+                            else if (receive_frame[i] != FLAG) {            // value that is neither FLAG or Address, we restart the machine
+                                currentState = START;
+                            }
+                            break;
+                        case A_RCV:
+                            if (receive_frame[i] == A_TX) { //unsure of value
+                                currentState = C_RCV;
+                            }
+                            else if (receive_frame[i] == FLAG) {
+                                currentState = FLAG_RCV;
+                            }
+                            else {
+                                currentState = START;
+                            }
+                            break;
+                        case C_RCV: // error?
+                            if (receive_frame[i] == (receive_frame[1] ^ receive_frame[2])) {
+                                currentState = BCC_OK;
+                            }
+                            else if (receive_frame[i] == FLAG) {
+                                currentState = FLAG_RCV;
+                            }
+                            else {
+                                currentState = START;
+                            }
+                            break;
+                        case BCC_OK:
+                            if (receive_frame[i] == FLAG) {     // check if received frame ends in the FLAG
+                                currentState = STOP_MACHINE;
+                                STOP = TRUE;
+                            }
+                            else {
+                                currentState = START;
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+        }
+
+            sendSupervision(fd, A_TX, C_UA);
     }
 
     
-    return mainFrame.fd;
+    return fd;
 
 }
 
