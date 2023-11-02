@@ -258,7 +258,7 @@ int destuffing(unsigned char* stuffedFrame, unsigned char* destuffedFrame, int s
 // Connection Control 
 ////////////////////////////////////////////////
 
-int SerialPortHandling(const char* serialPortName, int baudRate) {    // arguments that will be obtained from LinkLayer struct
+int SerialPortHandling(const char* serialPortName) {    // arguments that will be obtained from LinkLayer struct
     // Function based on provided SerialPort function in LAB1 and LAB2
     int fd;
     //open serial port device for reading and writing
@@ -279,7 +279,7 @@ int SerialPortHandling(const char* serialPortName, int baudRate) {    // argumen
     //clear struct for new port settings
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = B9600 | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -312,7 +312,7 @@ int llopen(LinkLayer connectionParameters) {
     int fd;
 
     // dealing with errors derived from Serial Port connection
-    if ((fd=SerialPortHandling(connectionParameters.serialPort, connectionParameters.baudRate))< 0) {
+    if ((fd=SerialPortHandling(connectionParameters.serialPort))< 0) {
         perror("Connection Error");
         return -1;
     }
@@ -324,112 +324,116 @@ int llopen(LinkLayer connectionParameters) {
     //llopen will do different tasks depending on the role
 
     switch (connectionParameters.role) {
-        case LlTx: {
-            (void)signal(SIGALRM, alarmHandler);
-            //building set buf
+    case LlTx: {
+        (void)signal(SIGALRM, alarmHandler);
+        //building set buf
 
-            unsigned char set_frame[5];
-            set_frame[0] = FLAG;
-            set_frame[1] = A_TX;
-            set_frame[2] = C_SET;
-            set_frame[3] = set_frame[1] ^ set_frame[2];
-            set_frame[4] = FLAG;
+        unsigned char set_frame[5];
+        set_frame[0] = FLAG;
+        set_frame[1] = A_TX;
+        set_frame[2] = C_SET;
+        set_frame[3] = set_frame[1] ^ set_frame[2];
+        set_frame[4] = FLAG;
 
-            sendFrame(fd, set_frame, 5);    // sends set frame
+        sendFrame(fd, set_frame, 5);    // sends set frame
 
-            unsigned char received_ua_frame[5];
+        unsigned char received_ua_frame[5];
 
-            while (STOP == FALSE && alarmCounter < nRetransmissions) {       // can't exceed the number of tries allowed by the program
-                //receive 5 chars (bytes), ua connection and check for the values necessary
-                int byte = read(fd, received_ua_frame, 5);
+        while (STOP == FALSE && alarmCounter < nRetransmissions) {       // can't exceed the number of tries allowed by the program
+            //receive 5 chars (bytes), ua connection and check for the values necessary
+            int byte = read(fd, received_ua_frame, 5);
 
-                //compare value in byte and received ua frame
-                // received frame should be : FLAG | A_TX | C_UA | A_TX ^ C_UA | FLAG
-                if (byte&& received_ua_frame[0] == FLAG && received_ua_frame[1] == A_TX && received_ua_frame[2] == C_UA && received_ua_frame[3] = (received_ua_frame[1] ^ received_ua_frame[2]) && received_ua_frame[4] == FLAG) {
-                    alarm(0);
-                    STOP = TRUE;
+            //compare value in byte and received ua frame
+            // received frame should be : FLAG | A_TX | C_UA | A_TX ^ C_UA | FLAG
+            if (byte&& received_ua_frame[0] == FLAG && received_ua_frame[1] == A_TX && received_ua_frame[2] == C_UA && received_ua_frame[3] == (received_ua_frame[1] ^ received_ua_frame[2]) && received_ua_frame[4] == FLAG) {
+                alarm(0);
+                STOP = TRUE;
+            }
+            else {
+                if (alarmEnabled == FALSE) {    // in case received ua_frame is not correct
+                    sendFrame(fd, set_frame, 5); // reattempts to send frame to file descriptor
+                    alarmEnabled = TRUE;
                 }
-                else {
-                    if (alarmEnabled == FALSE) {    // in case received ua_frame is not correct
-                        sendFrame(fd, set_frame, 5); // reattempts to send frame to file descriptor
-                        alarmEnabled = TRUE;
+            }
+        }
+
+        return fd;
+
+    }
+    case LlRx: {
+
+        unsigned char receive_frame[5];   // frame to be received
+
+        enum State currentState = START;   // sets state machine to the beggining
+
+        sleep(3);
+
+        while (STOP == FALSE) {
+            int bytes = read(fd, receive_frame, 5);
+
+            if (alarmCounter > nRetransmissions) {
+                printf("Number of tries exceeded\n");
+                return 1;
+            }
+
+            for (int i = 0; i < bytes; i++) {   // iterate over received_frame
+                switch (currentState) {
+                case START:
+                    if (receive_frame[i] == FLAG) {     // if flag, move on to next stage in state machine
+                        currentState = FLAG_RCV;
                     }
+                    break;
+                case FLAG_RCV:
+                    if (receive_frame[i] == A_TX) {
+                        currentState = A_RCV;
+                    }
+                    else if (receive_frame[i] != FLAG) {            // value that is neither FLAG or Address, we restart the machine
+                        currentState = START;
+                    }
+                    break;
+                case A_RCV:
+                    if (receive_frame[i] == A_TX) { //unsure of value
+                        currentState = C_RCV;
+                    }
+                    else if (receive_frame[i] == FLAG) {
+                        currentState = FLAG_RCV;
+                    }
+                    else {
+                        currentState = START;
+                    }
+                    break;
+                case C_RCV: // error?
+                    if (receive_frame[i] == (receive_frame[1] ^ receive_frame[2])) {
+                        currentState = BCC_OK;
+                    }
+                    else if (receive_frame[i] == FLAG) {
+                        currentState = FLAG_RCV;
+                    }
+                    else {
+                        currentState = START;
+                    }
+                    break;
+                case BCC_OK:
+                    if (receive_frame[i] == FLAG) {     // check if received frame ends in the FLAG
+                        currentState = STOP_MACHINE;
+                        STOP = TRUE;
+                    }
+                    else {
+                        currentState = START;
+                    }
+                    break;
+                default:
+                    break;
                 }
             }
 
-            return fd;
-
-        }
-        case LlRx: {
-
-            unsigned char* receive_frame[5];   // frame to be received
-
-            enum State currentState = START;   // sets state machine to the beggining
-
-            while (STOP == FALSE) {
-                int bytes = read(fd, receive_frame, 5);
-
-                if (alarmCounter > nRetransmissions) {
-                    printf("Number of tries exceeded\n");
-                    return 1;
-                }
-
-                for (int i = 0; i < bytes; i++) {   // iterate over received_frame
-                    switch (currentState) {
-                        case START:
-                            if (receive_frame[i] == FLAG) {     // if flag, move on to next stage in state machine
-                                currentState = FLAG_RCV;
-                            }
-                            break;
-                        case FLAG_RCV:
-                            if (receive_frame[i] == A_TX) {
-                                currentState = A_RCV;
-                            }
-                            else if (receive_frame[i] != FLAG) {            // value that is neither FLAG or Address, we restart the machine
-                                currentState = START;
-                            }
-                            break;
-                        case A_RCV:
-                            if (receive_frame[i] == A_TX) { //unsure of value
-                                currentState = C_RCV;
-                            }
-                            else if (receive_frame[i] == FLAG) {
-                                currentState = FLAG_RCV;
-                            }
-                            else {
-                                currentState = START;
-                            }
-                            break;
-                        case C_RCV: // error?
-                            if (receive_frame[i] == (receive_frame[1] ^ receive_frame[2])) {
-                                currentState = BCC_OK;
-                            }
-                            else if (receive_frame[i] == FLAG) {
-                                currentState = FLAG_RCV;
-                            }
-                            else {
-                                currentState = START;
-                            }
-                            break;
-                        case BCC_OK:
-                            if (receive_frame[i] == FLAG) {     // check if received frame ends in the FLAG
-                                currentState = STOP_MACHINE;
-                                STOP = TRUE;
-                            }
-                            else {
-                                currentState = START;
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
-
         }
 
-            sendSupervision(fd, A_TX, C_UA);
+        sendSupervision(fd, A_TX, C_UA);
+        break;
     }
 
+    }   // close the switch funtion
     
     return fd;
 
@@ -443,21 +447,46 @@ int llopen(LinkLayer connectionParameters) {
 int llwrite(int fd,const unsigned char* buf, int bufSize)
 {
     printf("Attempting to write...");
+
+    printf("ENTERED LLWRITE\n");
     // buf = array of characters to transmit
 
-    buildInformationFrame(A_TX, buf, bufSize);
+    //building Information Frame
+
+    //HEADER
+    unsigned char infoFrame[bufSize + 5];   // packet size + control fields (flag, address, control and bcc)
+    infoFrame[0] = FLAG;
+    infoFrame[1] = A_TX;
+    infoFrame[2] = (frameTransmitterControl ? C_I1 : C_I0); // if frameTransmitterControl = 0, the value assigned will be C_I0, otherwise it will be C_I1
+    infoFrame[3] = infoFrame[1] ^ infoFrame[2];
+
+    int nextIndex = 4;
+
+    // add packet data to frame
+
+    for(int index = 0; index<bufSize; index++){
+        infoFrame[nextIndex++] = buf[index];
+    }
+
+    // TRAILER
+    //building bcc2 after the packet data
+
+    infoFrame[nextIndex++] = BCC2(buf, bufSize);
+    infoFrame[nextIndex] = FLAG;
+
+    int infoFrameSize = nextIndex;
 
     unsigned char stuffedFrame[2*bufSize];
 
-    int stuffedFrameSize = stuffing(mainFrame.frame, stuffedFrame, mainFrame.size);  // Stuffed frame
-    sendFrame(mainFrame.fd, stuffedFrame, stuffedFrameSize + 1); // writing the frame in the file descriptor
+    int stuffedFrameSize = stuffing(infoFrame, stuffedFrame, infoFrameSize);  // Stuffed frame
+    sendFrame(fd, stuffedFrame, stuffedFrameSize + 1); // writing the frame in the file descriptor
     
     unsigned char control_field[5];
 
     STOP = FALSE;
 
-    while (STOP == FALSE && alarmConfig.Counter<alarmConfig.nreTransmissions){
-        int read_bytes = read(mainFrame.fd, control_field, 5);
+    while (STOP == FALSE && alarmCounter<nRetransmissions){
+        int read_bytes = read(fd, control_field, 5);
 
         if (read_bytes && control_field[0] == FLAG && (control_field[1] == A_TX || control_field[1] == A_RX) && (control_field[2] == C_RR0 || control_field[2] == C_RR1) && control_field[3] == (control_field[1] ^ control_field[2]) && control_field[4] == FLAG) {
             // if control field equals RR0 or RR1 (ready to receive)
@@ -470,18 +499,19 @@ int llwrite(int fd,const unsigned char* buf, int bufSize)
             // if control field equals REJ0 or REJ1 (receiver rejects information)
             alarm(0);
             printf("Information Frame rejected. Trying again...\n");
-            sendFrame(mainFrame.fd, stuffedFrame, stuffedFrameSize + 1);       // attempts to write the frame again
+            sendFrame(fd, stuffedFrame, stuffedFrameSize + 1);       // attempts to write the frame again
         }
         else {
-            if (alarmConfig.Enabled == FALSE) {
-                sendFrame(mainFrame.fd, stuffedFrame, stuffedFrameSize + 1);   // attempts to write the frame again
+            if (alarmEnabled == FALSE) {
+                sendFrame(fd, stuffedFrame, stuffedFrameSize + 1);   // attempts to write the frame again
+                alarmEnabled = TRUE;
             }
         }
     }
 
-    if (alarmConfig.Counter >= alarmConfig.nreTransmissions) {
-        fprintf(stderr, "Alarm Counter surpassed the possible number of Retransmissions");
-        llclose(mainFrame.fd, 0);
+    if (alarmCounter >= nRetransmissions) {
+        fprintf(stderr, "Alarm Counter surpassed the possible number of Retransmissions\n");
+        llclose(fd, 0);
         return -1;      // negative value because of the occurrence of an error
     }
 
@@ -511,10 +541,10 @@ int llread(int fd, unsigned char *packet)
         int control_Field;      // control field value
         int MachineControl = FALSE;         // False = Machine keeps working, True = Stop the Machine
         int disconnectControl = FALSE;      // Checks if we receive Control field with disconnect order
-        unsigned char stuffedPayload[2000];
+        unsigned char stuffedPayload[2100];
 
         while (MachineControl == FALSE) {
-            if (read(mainFrame.fd, &byte, 1) > 0) {
+            if (read(fd, &byte, 1) > 0) {
                 switch (currentState) {
                     case START:
                         if (byte == FLAG) {
@@ -616,6 +646,7 @@ int llread(int fd, unsigned char *packet)
                     case BCC2_CHECK:
                         destuffedPayloadSize = destuffing(stuffedPayload, destuffedPayload, stuffedPos);    // De-stuffing the data received
                         unsigned char bcc2 = BCC2(destuffedPayload, destuffedPayloadSize - 1);      // Checking for error in the data field
+                        
                         if (bcc2 == destuffedPayload[destuffedPayloadSize - 1]) {           // if bcc2 check turns out positive
                             currentState = BCC2_OK;
                         }
@@ -626,10 +657,10 @@ int llread(int fd, unsigned char *packet)
                             printf("Detected the occurrence of errors in the data field. Retrying...");
                             // send rejected frame with REJ0 or REJ1
                             if (frameReceiverControl == 0) {
-                                sendSupervision(mainFrame.fd, A_RX, C_REJ0);
+                                sendSupervision(fd, A_RX, C_REJ0);
                             }
                             else {
-                                sendSupervision(mainFrame.fd, A_RX, C_REJ1);
+                                sendSupervision(fd, A_RX, C_REJ1);
                             }
                         }
                         break;
@@ -645,17 +676,18 @@ int llread(int fd, unsigned char *packet)
                         break;
                     case STOP_MACHINE:
                         if (frameReceiverControl == 0) {    // sends rr1 or rr0
-                            sendSupervision(mainFrame.fd, A_TX, C_RR0);          
+                            sendSupervision(fd, A_TX, C_RR0);          
                         }
                         else {
-                            sendSupervision(mainFrame.fd, A_RX, C_RR1);
+                            sendSupervision(fd, A_RX, C_RR1);
                         }
+
                         frameReceiverControl = (frameReceiverControl + 1) & 2;
                         MachineControl = TRUE;
                         STOP = TRUE;
                         break;
                     case STOP_MACHINE_DC:
-                        sendSupervision(mainFrame.fd, A_RX, control_Field);   // send disconnection frame to terminate connection
+                        sendSupervision(fd, A_RX, control_Field);   // send disconnection frame to terminate connection
                         MachineControl = TRUE;
                         STOP = TRUE;
                         break;
@@ -684,16 +716,24 @@ int llclose(int fd, int showStatistics)
  
     (void)signal(SIGALRM, alarmHandler);
     
-    buildSupervisionFrame(A_TX, C_DISC);        // creates frame with control field equal to the control disconnect value
+    // build disconnect frame = FLAG | A_TX | C_DISC | BCC | FLAG
+
+    unsigned char disconnect_frame[5];
+    disconnect_frame[0] = FLAG;
+    disconnect_frame[1] = A_TX;
+    disconnect_frame[2] = C_DISC;
+    disconnect_frame[3] = disconnect_frame[1] ^ disconnect_frame[2];
+    disconnect_frame[4] = FLAG;
     
-    sendFrame(mainFrame.fd, mainFrame.frame, 5);    
+    sendFrame(fd, disconnect_frame, 5);    
 
     // receive disconnect order
 
     unsigned char byte;
+    STOP = FALSE;
 
-    while (currentState != STOP_MACHINE) {
-        if (read(mainFrame.fd, &byte, 1)) {
+    while (STOP==FALSE) {
+        if (read(fd, &byte, 1)) {
             switch (currentState) {
                 case START:
                     if (byte == FLAG) {
@@ -733,6 +773,7 @@ int llclose(int fd, int showStatistics)
                 case BCC_OK:
                     if (byte == FLAG) {
                         currentState = STOP_MACHINE;
+                        STOP = TRUE;
                     }
                     else {
                         currentState = START;
@@ -743,14 +784,14 @@ int llclose(int fd, int showStatistics)
         }
     }
 
-    if (currentState != STOP_MACHINE) {           // Previous State Changes didn't work
+    if (STOP == FALSE) {           // Previous State Changes didn't work
         return -1;
     }
 
     // send ua disconnect frame
 
-    sendSupervision(mainFrame.fd, A_TX, C_UA);
+    sendSupervision(fd, A_TX, C_UA);
     alarm(0);
 
-    return close(mainFrame.fd);
+    return close(fd);
 }

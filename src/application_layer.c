@@ -5,11 +5,6 @@
 
 #define MAX_PAYLOAD_SIZE 1024
 
-struct mainFrame_struct {
-    unsigned char frame[MAX_PAYLOAD];
-    size_t size;
-    int fd;
-};
 
 extern struct mainFrame_struct mainFrame;
 
@@ -47,7 +42,7 @@ unsigned char* sendControlPacket(const unsigned int controlField, const char* fi
 
 
 
-unsigned char* sendDataPacket(unsigned char* packetData, int dataSize, int* packetSize) {
+unsigned char* sendDataPacket(unsigned char sequence, unsigned char* packetData, int dataSize, int* packetSize) {
     
     // K = number of octets (256 * L2 + L1) in the data field
     int L2 = dataSize / OCTET;
@@ -58,18 +53,19 @@ unsigned char* sendDataPacket(unsigned char* packetData, int dataSize, int* pack
     unsigned char* dataPacket = (unsigned char*)malloc(*packetSize);
 
     dataPacket[0] = CONTROL_DATA;
-    dataPacket[1] = L2;
-    dataPacket[2] = L1;
+    dataPacket[1] = sequence,
+    dataPacket[2] = L2;
+    dataPacket[3] = L1;
 
     // get packet data field
 
-    memcpy(dataPacket + 3, packetData, dataSize); // copies packet data field after control field, L2 and L1
+    memcpy(dataPacket + 4, packetData, dataSize); // copies packet data field after control field, L2 and L1
 
 
     return dataPacket;
 }
 
-unsigned char* readControlPacket(unsigned char* packet, long* size, unsigned long int* filenameSize) {
+unsigned char* readControlPacket(unsigned char* packet, int size, int* filenameSize) {
     unsigned char fileSizeBytes = packet[6];    // V value (number of octets indicated in L)
     unsigned char* fileSizeAuxiliary = (unsigned char*)malloc(fileSizeBytes);
     memcpy(fileSizeAuxiliary, packet + 7, fileSizeBytes); // copies file Size Auxiliary packet to the end of the Control Packet
@@ -80,6 +76,7 @@ unsigned char* readControlPacket(unsigned char* packet, long* size, unsigned lon
     *filenameSize = fileNameBytes;
     return fileName;
 }
+
 
 unsigned char* getInfo(FILE* fileReceived, long int fileSize) {
     unsigned char* data = (unsigned char*)malloc(sizeof(unsigned char) * fileSize);         // creates data array with the size of the file
@@ -92,6 +89,7 @@ void readDataPacket(const unsigned char* packet, const unsigned int packetSize, 
     frame += packetSize;
 }
 
+/*
 int sendFileTX(const char* filename) {
     FILE* fileSent = fopen(filename, "rb");		// Opens non-text file for reading
 
@@ -195,6 +193,7 @@ int getFileRX(const char* filename) {
 
     return 0;
 }
+*/
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -210,6 +209,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         return;
     }
 
+
     LinkLayer connectionParameters;
     strcpy(connectionParameters.serialPort, serialPort);      // copies serialPort given into to link layer Serial Port
     if (strcmp(role,(const char*)"tx")) {
@@ -223,32 +223,141 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.nRetransmissions = nTries;
     connectionParameters.timeout = timeout;
 
-    if (llopen(connectionParameters) < 0) {
+    int fd;
+    if ((fd=llopen(connectionParameters)) < 0) {
         fprintf(stderr, "Failed trying to establish a connection\n");
         return;
     }
 
-    printf("Established a Connection!");
+    printf("Established a Connection!\n");
 
-    if (connectionParameters.role == LlTx) {
-        if (sendFileTX(filename) == -1) {
-            fprintf(stderr, "Failed to Send File\n");
-            return;
+    switch (connectionParameters.role) {
+        case LlTx: {
+            FILE* fileSent = fopen("penguin.gif", "rb"); // Opens non-text file for reading
+            //no file open
+            if (fileSent == NULL) {
+                fprintf(stderr, "File not found ERRRORRRR\n");		//dealing with the case of no file
+                exit(-1);
+            }
+
+
+            int fileStart = ftell(fileSent);    //get beginning position of file
+            fseek(fileSent, 0, SEEK_END);	//  sets the file position indicator to the end of the fileSent
+            long fileSentSize = ftell(fileSent);	// returns the current value of the position of the position indicator, since its at the end, we get the fileSize
+            fseek(fileSent, fileStart, SEEK_SET);	// sets the file position indicator in the beginning of the fileSent
+
+            printf("Sent File has the following size: %ld\n", fileSentSize);
+
+            unsigned int startControlPacketSize;
+            unsigned char* startControlPacket = sendControlPacket(CONTROL_START, filename, fileSentSize, &startControlPacketSize);
+
+            if (llwrite(fd, startControlPacket, startControlPacketSize) == -1) {
+                fprintf(stderr, "Error while sending Start Control Packet\n");
+                exit(-1);
+            }
+
+
+            printf("Start Control Packet Sent!");
+
+            unsigned char sequence = 0;
+            unsigned char* dataPacket = getInfo(fileSent, fileSentSize);
+            long int bytesRead = fileSentSize;
+            while (bytesRead>=0){   // while there is still bytes left to read
+                int dataSize = bytesRead > (long int)BLOCK_SIZE ? BLOCK_SIZE : bytesRead;       // check if the defined value for block size is bigger than the side of fileSent. If not dataSize will be BLOCK_SIZE, else dataSize = fileSentSize
+                unsigned char* sentData = (unsigned char*)malloc(dataSize);        // create dataPacket array with the data size defined in the line before
+
+                memcpy(sentData, dataPacket, dataSize);         // copies the contents inside data packet to this new array
+                
+                int packetSize;
+
+                unsigned char* packet = sendDataPacket(sequence, sentData, dataSize, &packetSize);
+
+                if (llwrite(fd, packet, packetSize) == -1) {            // if writing fails
+                    fprintf(stderr, "Error inside the data packet\n");
+                    exit(-1);
+                }
+
+                bytesRead -= (long int)BLOCK_SIZE;
+                dataPacket += dataSize;
+                sequence = (sequence + 1) % 255;
+
+
+            }
+
+            printf("File sent\n");
+
+            unsigned char* endControlPacket = sendControlPacket(CONTROL_END, filename, fileSentSize, &startControlPacketSize);
+
+            if (llwrite(fd, endControlPacket, startControlPacketSize) == -1) {  //llwrite error
+                fprintf(stderr, "Error while sending End Control Packet\n");
+                exit(-1);
+            }
+
+            if (llclose(fd, 0) == -1) {
+                fprintf(stderr, "Error while attempting to close Link Layer");
+                exit(-1);
+            }
+
+            printf("Disconnecting\n");
+
+            break;
         }
-        printf("File Sent!");
-    }
-    else {
-        if (getFileRX(filename) == -1) {
-            fprintf(stderr, "Failed to Receive File\n");
-            return;
+
+        case LlRx: {
+            unsigned char* packet = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
+            long packetSize = -1;
+
+            // make receiver wait for start packet
+
+            while ((packetSize = llread(fd, packet) < 0));
+
+            printf("Start Packet received!\n");
+            int fileNameSize=0;
+            readControlPacket(packet, packetSize, &fileNameSize);    // unused?
+
+
+            FILE* fileGot = fopen((char* )"penguin-received.gif", "wb+");
+
+            if (fileGot == NULL) {
+                fprintf(stderr, "File not found\n");		//dealing with the case of no file
+                exit(-1);
+            }
+
+
+            while (1) {
+                packetSize = -1;
+                while ((packetSize = llread(fd, packet)) < 0) {
+                    if (!packetSize) {
+                        break;
+                    }
+                    else if (packet[0] != CONTROL_END) {
+                        unsigned char* endPacket = (unsigned char*)malloc(packetSize);
+                        readDataPacket(packet, packetSize, endPacket);
+                        fwrite(endPacket, sizeof(unsigned char), packetSize - 5, fileGot);
+                        free(endPacket);
+                    }
+                    else {
+                        break;
+                    }
+                }
+                
+            }
+
+            printf("File Received!");
+
+            fclose(fileGot);
+
+            int disconnect = -1;
+            
+            //wait for disconnect order
+            while ((disconnect = llread(fd, packet)) < 0);
+            printf("Disconnecting...\n");
+            break;
         }
-        printf("File Received!");
+        default:
+            exit(-1);
+            break;
+
     }
 
-    if (llclose(mainFrame.fd, 0) == -1) {
-        fprintf(stderr, "Failed trying to close connection\n");
-        return;
-    }
-
-    printf("Connection Closed!");
 }
