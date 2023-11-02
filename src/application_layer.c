@@ -212,7 +212,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     LinkLayer connectionParameters;
     strcpy(connectionParameters.serialPort, serialPort);      // copies serialPort given into to link layer Serial Port
-    if (strcmp(role,(const char*)"tx")) {
+    if (!strcmp(role,"tx")) {
         connectionParameters.role = LlTx;
     }
     else {
@@ -233,10 +233,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
     switch (connectionParameters.role) {
         case LlTx: {
-            FILE* fileSent = fopen("penguin.gif", "rb"); // Opens non-text file for reading
+            FILE* fileSent = fopen(filename, "r"); // Opens non-text file for reading
             //no file open
             if (fileSent == NULL) {
-                fprintf(stderr, "File not found ERRRORRRR\n");		//dealing with the case of no file
+                fprintf(stderr, "File not found TX\n");		//dealing with the case of no file
                 exit(-1);
             }
 
@@ -257,7 +257,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
 
 
-            printf("Start Control Packet Sent!");
+            printf("Start Control Packet Sent!\n ");
 
             unsigned char sequence = 0;
             unsigned char* dataPacket = getInfo(fileSent, fileSentSize);
@@ -316,10 +316,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             readControlPacket(packet, packetSize, &fileNameSize);    // unused?
 
 
-            FILE* fileGot = fopen((char* )"penguin-received.gif", "wb+");
+            FILE* fileGot = fopen((char* )"penguin-received.gif", "w");
 
             if (fileGot == NULL) {
-                fprintf(stderr, "File not found\n");		//dealing with the case of no file
+                fprintf(stderr, "File not found RX\n");		//dealing with the case of no file
                 exit(-1);
             }
 

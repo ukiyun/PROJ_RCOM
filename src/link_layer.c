@@ -44,7 +44,7 @@ int alarmTimeout;
 int nRetransmissions;
 
 void alarmHandler(int signal) {
-    alarmEnabled = FALSE;
+    alarmEnabled = TRUE;
     alarmCounter++;
     printf("Alarm %d triggered.\n", alarmCounter);
 }
@@ -446,15 +446,15 @@ int llopen(LinkLayer connectionParameters) {
 
 int llwrite(int fd,const unsigned char* buf, int bufSize)
 {
-    printf("Attempting to write...");
+    printf("Attempting to write... \n");
 
-    printf("ENTERED LLWRITE\n");
     // buf = array of characters to transmit
 
     //building Information Frame
 
     //HEADER
-    unsigned char infoFrame[bufSize + 5];   // packet size + control fields (flag, address, control and bcc)
+    unsigned char* infoFrame = (unsigned char*)malloc(2* bufSize + 6);   // packet size + control fields (flag, address, control and bcc)
+    
     infoFrame[0] = FLAG;
     infoFrame[1] = A_TX;
     infoFrame[2] = (frameTransmitterControl ? C_I1 : C_I0); // if frameTransmitterControl = 0, the value assigned will be C_I0, otherwise it will be C_I1
@@ -462,37 +462,59 @@ int llwrite(int fd,const unsigned char* buf, int bufSize)
 
     int nextIndex = 4;
 
+
     // add packet data to frame
 
+    //calculate BCC2
+    unsigned char BCC_2 = BCC2(buf,bufSize);
+
     for(int index = 0; index<bufSize; index++){
-        infoFrame[nextIndex++] = buf[index];
+
+        // byte stuffing
+        if(buf[index]==FLAG || buf[index]== ESCAPE){
+            infoFrame[nextIndex++] = ESCAPE;
+            infoFrame[nextIndex++] = buf[index] ^ 0x20;
+        }
+        else{
+           infoFrame[nextIndex++] = buf[index]; 
+        }
+        
+    }
+
+    if(BCC_2 == FLAG || BCC_2 == ESCAPE){
+        BCC_2 ^= 0x20;
     }
 
     // TRAILER
     //building bcc2 after the packet data
 
-    infoFrame[nextIndex++] = BCC2(buf, bufSize);
+    infoFrame[nextIndex++] = BCC_2;
     infoFrame[nextIndex] = FLAG;
 
-    int infoFrameSize = nextIndex;
+    infoFrame = realloc(infoFrame, nextIndex);
 
-    unsigned char stuffedFrame[2*bufSize];
+    //  unsigned char stuffedFrame[2*bufSize];
 
-    int stuffedFrameSize = stuffing(infoFrame, stuffedFrame, infoFrameSize);  // Stuffed frame
-    sendFrame(fd, stuffedFrame, stuffedFrameSize + 1); // writing the frame in the file descriptor
+    //int stuffedFrameSize = stuffing(infoFrame, stuffedFrame, infoFrameSize);  // Stuffed frame
+    //sendFrame(fd, stuffedFrame, stuffedFrameSize + 1); // writing the frame in the file descriptor
     
-    unsigned char control_field[5];
+    unsigned char control_field = 0;
+    unsigned char controlValue = 0;
+    unsigned char bytes_sent = 0;
+    alarmCounter = 0;
+    int checkControl = 0;
 
-    STOP = FALSE;
+    (void) signal(SIGALRM, alarmHandler);
 
-    while (STOP == FALSE && alarmCounter<nRetransmissions){
+    while (alarmCounter < nRetransmissions){
+        /*
         int read_bytes = read(fd, control_field, 5);
 
         if (read_bytes && control_field[0] == FLAG && (control_field[1] == A_TX || control_field[1] == A_RX) && (control_field[2] == C_RR0 || control_field[2] == C_RR1) && control_field[3] == (control_field[1] ^ control_field[2]) && control_field[4] == FLAG) {
             // if control field equals RR0 or RR1 (ready to receive)
             alarm(0);
             frameTransmitterControl = (frameTransmitterControl + 1) % 2;  // guarantees that the value of TransmitterControl is always 1 or 0
-            printf("Written Successfully!");
+            printf("Written Successfully! \n");
             STOP = TRUE;    // ready to receive ! 
         }
         else if (read_bytes && control_field[0] == FLAG && (control_field[1] == A_TX || control_field[1] == A_RX) && (control_field[2] == C_REJ0 || control_field[2] == C_REJ1) && control_field[3] == (control_field[1] ^ control_field[2]) && control_field[4] == FLAG) {
@@ -505,18 +527,103 @@ int llwrite(int fd,const unsigned char* buf, int bufSize)
             if (alarmEnabled == FALSE) {
                 sendFrame(fd, stuffedFrame, stuffedFrameSize + 1);   // attempts to write the frame again
                 alarmEnabled = TRUE;
+                alarmCounter++;
+
             }
+        }
+        */
+
+        alarmCounter++;
+
+        enum State currentState = START;
+
+        bytes_sent = write(fd, infoFrame, nextIndex+1);
+        sleep(1);
+
+        alarm(alarmTimeout);
+        alarmEnabled = FALSE;
+
+
+        while(currentState != STOP_MACHINE && alarmEnabled ==FALSE){
+            if(read(fd, &control_field, 1) >0){
+                switch(currentState){
+                    case START:
+                        if(control_field == FLAG){
+                            currentState = FLAG_RCV;
+                        }
+                        break;
+                    case FLAG_RCV:
+                        if(control_field == A_RX){
+                            currentState = A_RCV;
+                        }
+                        else if (control_field!=FLAG){
+                            currentState = START;
+                        }
+                        break;
+                    case A_RCV:
+                        if(control_field == C_RR0 || control_field == C_RR1 || control_field == C_REJ0 || control_field == C_REJ1 || control_field == C_DISC){
+                            currentState = C_RCV;
+                            controlValue = control_field;
+                        }
+                        else if(control_field == FLAG){
+                            currentState = FLAG_RCV;
+                        }
+                        else{
+                            currentState = START;
+                        }
+                        break;
+                    case C_RCV:
+                        if(control_field == (A_RX ^ controlValue)){
+                            currentState = BCC_OK;
+                        }
+                        else if(control_field == FLAG){
+                            currentState = FLAG_RCV;
+                        }
+                        else{
+                            currentState = START;
+                        }
+                        break;
+                    case BCC_OK:
+                        if(control_field==FLAG){
+                            currentState = STOP_MACHINE;
+                        }
+                        else{
+                            currentState = START;
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (controlValue == C_RR0 || controlValue == C_RR1){
+            checkControl = 1;
+            break;
+        }
+        else if(controlValue == C_REJ0 || controlValue == C_REJ1){
+            continue;
         }
     }
 
+    free(infoFrame);
+
+
+/*
     if (alarmCounter >= nRetransmissions) {
         fprintf(stderr, "Alarm Counter surpassed the possible number of Retransmissions\n");
         llclose(fd, 0);
         return -1;      // negative value because of the occurrence of an error
     }
+*/
 
-
-    return stuffedFrameSize+1;  // number of characters written
+    if(checkControl == 1){
+        return bytes_sent;  // number of characters written
+    }
+    else{
+        llclose(fd,0);
+        return -1;
+    }
 }
 
 ////////////////////////////////////////////////
@@ -524,7 +631,7 @@ int llwrite(int fd,const unsigned char* buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(int fd, unsigned char *packet)
 {
-    printf("Attempting to read...");
+    printf("Attempting to read... \n");
 
     STOP = FALSE;
     
@@ -730,9 +837,9 @@ int llclose(int fd, int showStatistics)
     // receive disconnect order
 
     unsigned char byte;
-    STOP = FALSE;
+    int stop = 0;
 
-    while (STOP==FALSE) {
+    while (stop==0) {
         if (read(fd, &byte, 1)) {
             switch (currentState) {
                 case START:
@@ -773,7 +880,7 @@ int llclose(int fd, int showStatistics)
                 case BCC_OK:
                     if (byte == FLAG) {
                         currentState = STOP_MACHINE;
-                        STOP = TRUE;
+                        stop = 1;
                     }
                     else {
                         currentState = START;
@@ -784,7 +891,7 @@ int llclose(int fd, int showStatistics)
         }
     }
 
-    if (STOP == FALSE) {           // Previous State Changes didn't work
+    if (stop!=1) {           // Previous State Changes didn't work
         return -1;
     }
 
