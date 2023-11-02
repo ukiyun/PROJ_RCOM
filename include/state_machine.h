@@ -2,8 +2,7 @@
 #define _STATE_MACHINE_H_
 
 #include <stdio.h>
-#include "macros.h"
-
+#include "utilities.h"
 
 /*
 HEADER DEDICATED TO IMPLEMENTATIONS OF ALL FUNCTIONS/MACROS RELATED TO THE STATE MACHINES
@@ -15,8 +14,13 @@ typedef enum {
 	FLAG_RCV,		// Received Flag
 	A_RCV,			// Received Address Field
 	C_RCV,			// Received Control Field
+	CI_RCV,			// Received Control Field is C_I0 || C_I1
 	BCC_OK,			// Received Independent Protection Field and is valid
-	STOP_MACHINE	// End State
+	STOP_MACHINE,	// End State
+	STOP_MACHINE_DC, // End State with Control Field = C_DISC
+	PAYLOAD,		// Actual Data being sent
+	BCC2_CHECK,	// Check BCC2
+	BCC2_OK		// BCC2 check is alright
 }State;
 
 
@@ -30,8 +34,5 @@ typedef struct {
 void stateChange(StateMachine* stM, State state); // changes the current state of the machine
 
 void stateTransition(StateMachine* stM, unsigned char* frame, int size, unsigned char Address, unsigned char Control); // Address and Control depend on the role
-
-int getControlField(); // gets the value stored in control field of the frame
-
 
 #endif /* _STATE_MACHINE_H_ */

@@ -1,9 +1,10 @@
 
-#ifndef _UTLITIES_H_
+#ifndef _UTILITIES_H_
 #define _UTILITIES_H_
 
 #include "macros.h"
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +14,8 @@
 #include <unistd.h>
 #include <signal.h>
 
-
-volatile int STOP;
+extern int frameTransmitterControl;    // Control that the transmitter is sending
+extern int frameReceiverControl;    // Control that the receiver is expecting
 
 
 // Frame Holder
@@ -46,10 +47,10 @@ void sendFrame(int fd, unsigned char* frame, int n);
 
 int sendSup(int fd, unsigned char Address, unsigned char C);
 
-unsigned char BCC2(unsigned char* frame, int size); // Field to detect the occurrence of errors in the data field
+unsigned char BCC2(const unsigned char* frame, int size); // Field to detect the occurrence of errors in the data field
 
-unsigned char* stuffing(const unsigned char* frame, int frameSize, int* newSize); // Byte Stuffing Mechanism
+int stuffing(unsigned char* frame, unsigned char* stuffedFrame, int frameSize); // Byte Stuffing Mechanism
 
-unsigned char* destuffing(const unsigned char* stuffedFrame, int frameSize, int* newSize); // Reverse Byte Stuffing Mechanism
+int destuffing(const unsigned char* stuffedFrame, unsigned char* destuffedFrame, int destuffedSize); // Reverse Byte Stuffing Mechanism
 
 #endif /* _UTILITIES_H_ */
