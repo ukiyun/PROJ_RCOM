@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 
-#define MAX_PAYLOAD_SIZE 1024 // approx 1 GB
+#define MAX_PAYLOAD_SIZE 1000
 
 
 int sendControlPacket(int packetInfo, const char* fileName, long size) {            // packetInfo is either CONTROL_DATA/CONTROL_START/CONTROL_END
@@ -102,7 +102,8 @@ int readControlPacket(unsigned char controlPacket, unsigned char* frame, size_t*
         else if (type == FILE_NAME) {
             printf("FileName Accessed\n");                  
             *fileName = frame[index];                       // type 1 = FILE NAME INFO
-            index += sizeof(char);
+            index += *fileName;
+
         }
         else {
             fprintf(stderr, "Invalid Control Packet Type\n");
@@ -173,10 +174,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             printf("Start Control Packet Sent!\n ");
 
-            unsigned char* dataPacket = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
-            int dataSize;
+            unsigned char* dataPacket = (unsigned char*)malloc(sizeof(unsigned char)*fileTxSize) ;
+            long dataSize;
             
-            while ((dataSize = fread(dataPacket, 1, MAX_PAYLOAD_SIZE, fileTx)) > 0) {                // reads data from fileTx into dataPacket
+            while ((dataSize = fread(dataPacket, sizeof(unsigned char),fileTxSize, fileTx)) > 0) {                // reads data from fileTx into dataPacket
                 if (sendDataPacket(dataPacket, dataSize)) {
                     fprintf(stderr, "Failed to send Data Packet\n");
                     return;

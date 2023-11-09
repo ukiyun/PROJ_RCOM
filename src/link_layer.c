@@ -23,7 +23,7 @@
 volatile int STOP = FALSE;
 
 int frameTransmitterControl = 0;
-int frameReceiverControl = 1;
+int frameReceiverControl = 0;
 
 
 int alarmEnabled = FALSE;
@@ -443,12 +443,11 @@ int llwrite(const unsigned char* buf, int bufSize)
     alarmEnabled = FALSE;
     alarmCounter = 0;
 
+    int initialRetransmissions = nRetransmissions;
 
-
-    while (alarmCounter < nRetransmissions) {
-        if (alarmEnabled == FALSE) {
+    while (nRetransmissions > 0) {
+        if (!alarmEnabled) {
             write(fd, infoFrame, nextIndex);            // writes into file descriptor the full information frame / nextIndex = infoFrame Size
-            alarmCounter++;
             alarmEnabled = TRUE;
             alarm(alarmTimeout);
         }
@@ -460,15 +459,20 @@ int llwrite(const unsigned char* buf, int bufSize)
             checkControl = 1;                                                   // ControlField Accepted
             alarm(0); //Disable the alarm
             frameTransmitterControl = (frameTransmitterControl + 1) % 2;        // Makes Sure frameTransmitterControl is either 1 or 0
+            nRetransmissions = initialRetransmissions;
             break;
         }
         else if (controlField == C_REJ0 || controlField == C_REJ1) {    // If ControlField is the indication that Receiver rejects an infoFrame
-            alarm(0); //Disable the alarm
             alarmEnabled = FALSE;                                       // Going to Retry Writing
-            continue;
+            printf("Control Field Rejected. Trying again...\n");
+        }
+
+        //check for timeout
+        if (!alarmEnabled) {
+            nRetransmissions--; // Decrement retransmissions only if the alarm is not enabled (timeout occurred)
+            printf("Timeout! Retransmissions left: %d\n", nRetransmissions);
         }
     }
-    free(infoFrame);                // Deals with Memory Allocation
     
     if (checkControl == 1) {
         return nextIndex;               // Returns number of bytes written
@@ -544,7 +548,8 @@ int llread(unsigned char *packet)
                     else if (byte == FLAG) {
                         //De-stuffing
 
-                        unsigned char bcc2 = packet[--position];          // bcc2 + flag
+                        unsigned char bcc2 = packet[position-1];          // bcc2 + flag
+                        position--;
                         packet[position] = '\0';                    // removed bcc2 and ending flag,  position will be equal to the size of whats left
 
                         // checking BCC2
@@ -604,7 +609,7 @@ int llread(unsigned char *packet)
         }
     }
 
-    return -1;                  // read not successful
+    return 1;                  // read
 }
 
 ////////////////////////////////////////////////
