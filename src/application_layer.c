@@ -87,12 +87,15 @@ int readControlPacket(unsigned char controlPacket, unsigned char* frame, size_t*
         return -1;
     }
 
+    int fileNameSize = sizeof(fileName);
+    printf("fileName Size: %d\n", fileNameSize);
+
     int index = 1;                                         // start after frame[0]
     unsigned char type;                                    // TLV
 
     while (index < frameSize) {
         type = frame[index++];                              // increments index after assigning frame[1] to type
-
+        printf("Frame index %d\n", index);
         //dealing with type
         if (type == FILE_SIZE) {
             printf("FileSize Accessed\n");  
@@ -102,7 +105,7 @@ int readControlPacket(unsigned char controlPacket, unsigned char* frame, size_t*
         else if (type == FILE_NAME) {
             printf("FileName Accessed\n");                  
             *fileName = frame[index];                       // type 1 = FILE NAME INFO
-            index += *fileName;
+            index += fileNameSize;
 
         }
         else {
@@ -226,36 +229,37 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 return;
             }
 
-            printf("File Opened!");
-            free(startControlPacket);                          // Memory Allocation
+            printf("File Stream Opened!\n");
             
-            int payloadSize;
+            int payloadSize = -1;
 
-            while ((payloadSize = llread(startControlPacket)) >= 0) {           // llread positive, so there are no errors;
+            while ((payloadSize = llread(startControlPacket)) <0) {           // llread positive, so there are no errors;
                 if (payloadSize == 0) {
-                    continue;           
+                    break;      
                 }
-                if (startControlPacket[0] == CONTROL_END) {
+                else if (startControlPacket[0] == CONTROL_END) {
                     printf("Received End Packet!\n");
-                    break;
+
+                    fwrite(startControlPacket, sizeof(unsigned char), payloadSize-4, fileRx);
+                    free(startControlPacket);
                 }
                 else {
-                    printf("Writing into the file...");
-                    fwrite(startControlPacket + 3, 1, startControlPacket[1] * OCTET + startControlPacket[2], fileRx);             // Writing binary data to fileSent, starts from the fourth element of startControlPacket and writes (scp[1] * OCTET * scp[2])bytes, each of size 1
+                    break;
                 }
+
             }
-            free(startControlPacket);                   // Memory Allocation
+
+            printf("File Received!\n");
             fclose(fileRx);                           // Closes the Stream fileSent
             printf("The File Stream has been closed!\n");
             printf("Closing LinkLayer...\n");
-            if (llclose(1) < 0) {                // error trying to close link layer
-                fprintf(stderr, "Error Trying to close Link Layer");
-                return;
-            }
-            printf("Link Layer Closed!\n");
+            int disconnect = 1;
+            while((disconnect = llread(startControlPacket))<0);
+            printf("Disconnecting...\n");
             break;
         }
         default:
+            exit(-1);
             break;
 
     }

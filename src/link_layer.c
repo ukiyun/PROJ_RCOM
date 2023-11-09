@@ -429,50 +429,49 @@ int llwrite(const unsigned char* buf, int bufSize)
         }
         
     }
-
+    printf("Byte Stuffing Done\n");
     // TRAILER
     infoFrame[nextIndex++] = bcc2;
-    infoFrame[nextIndex] = FLAG;
+    infoFrame[nextIndex++] = FLAG;
 
     infoFrame = realloc(infoFrame, nextIndex);          // Memory Reallocation to the actual frame size
 
+    printf("Info Frame built\n");
+
     // Dealing with the different Control Field Values
     int checkControl = 0;
-
-
-    alarmEnabled = FALSE;
     alarmCounter = 0;
 
-    int initialRetransmissions = nRetransmissions;
+    while (alarmCounter<nRetransmissions) {
+        alarmEnabled = FALSE;
+        alarm(alarmTimeout);
+        checkControl = 0;
 
-    while (nRetransmissions > 0) {
-        if (!alarmEnabled) {
-            write(fd, infoFrame, nextIndex);            // writes into file descriptor the full information frame / nextIndex = infoFrame Size
-            alarmEnabled = TRUE;
-            alarm(alarmTimeout);
+        while(alarmEnabled == FALSE  && checkControl!= 1){
+            write(fd, infoFrame, nextIndex);
+            unsigned char controlField = getControlField();           // gets the Value inside the Frame ControlField
+            
+            if(controlField == 0){                                      // didn't read control field
+                continue;
+            }
+                // ControlField Value makes the action change
+            else if (controlField == C_RR0 || controlField == C_RR1) {                   // If ControlField is the indication that Receiver is ready to receive InfoFrame
+                checkControl = 1;                                                   // ControlField Accepted
+                frameTransmitterControl = (frameTransmitterControl + 1) % 2;        // Makes Sure frameTransmitterControl is either 1 or 0
+            }
+            else if (controlField == C_REJ0 || controlField == C_REJ1) {    // If ControlField is the indication that Receiver rejects an infoFrame
+                checkControl = 0;                                  // Going to Retry Writing
+                printf("Control Field Rejected. Trying again...\n");
+            }
+            else continue;   
+
         }
 
-        unsigned char controlField = getControlField();           // gets the Value inside the Frame ControlField
-
-        // ControlField Value makes the action change
-        if (controlField == C_RR0 || controlField == C_RR1) {                   // If ControlField is the indication that Receiver is ready to receive InfoFrame
-            checkControl = 1;                                                   // ControlField Accepted
-            alarm(0); //Disable the alarm
-            frameTransmitterControl = (frameTransmitterControl + 1) % 2;        // Makes Sure frameTransmitterControl is either 1 or 0
-            nRetransmissions = initialRetransmissions;
-            break;
-        }
-        else if (controlField == C_REJ0 || controlField == C_REJ1) {    // If ControlField is the indication that Receiver rejects an infoFrame
-            alarmEnabled = FALSE;                                       // Going to Retry Writing
-            printf("Control Field Rejected. Trying again...\n");
-        }
-
-        //check for timeout
-        if (!alarmEnabled) {
-            nRetransmissions--; // Decrement retransmissions only if the alarm is not enabled (timeout occurred)
-            printf("Timeout! Retransmissions left: %d\n", nRetransmissions);
-        }
-    }
+    if(checkControl == 1) {break;}
+    alarmCounter++;
+    } 
+    
+    free(infoFrame);        // Memory Allocation
     
     if (checkControl == 1) {
         return nextIndex;               // Returns number of bytes written
