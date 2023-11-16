@@ -4,52 +4,11 @@ Established a Connection!
 Attempting to read Start Packet...
 Attempting to read... 
 FLAG
-Received Frame: 
+Received Frame: 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 
 CURRENT STATE = STOP_MACHINE
+Received Frame: 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 
+Sent RR0
 Position value: 19
-Received Frame: 02 00 02 00 00 00 00 00 00 00 01 DE 84 9B 8C FE 7F 00 00 
-fileName Size: 2
-Frame index 2
-FileSize Accessed
-Frame index 11
-FileName Accessed
-Read Control Packet Successfully!
-File Stream Opened!
-Attempting to read... 
-FLAG
-Received Frame: 
-CURRENT STATE = STOP_MACHINE
-Position value: 19
-writing to fileThe File Stream has been closed!
-Closing LinkLayer...
-Attempting to read... 
-FLAG
-Received Frame: 
-BCC2 CHECK != 2
-Position value: 10
-Attempting to read... 
-FLAG
-Received Frame: 
-BCC2 CHECK != 2
-Position value: 8
-Attempting to read... 
-FLAG
-Received Frame: 
-BCC2 CHECK != 2
-Position value: 12
-Attempting to read... 
-FLAG
-Received Frame: 
-BCC2 CHECK != 2
-Position value: 7
-Attempting to read... 
-FLAG
-Received Frame: 
-BCC2 CHECK != 2
-Position value: 12
-Attempting to read... 
-FLAG
-Received Frame: 
-CURRENT STATE = STOP_MACHINE
-Position value: 19
-Disconnecting...
+Frame successfully received.
+*** stack smashing detected ***: terminated
+Aborted (core dumped)
