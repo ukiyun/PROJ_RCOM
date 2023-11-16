@@ -1,0 +1,76 @@
+Starting link-layer protocol application
+  - Serial port: /dev/ttyS0
+  - Role: tx
+  - Baudrate: 9600
+  - Number of tries: 3
+  - Timeout: 4
+  - Filename: penguin.gif
+New termios structure set
+Attempting to open...
+Established a Connection!
+Trying to send Start Control Packet
+Attempting to write... 
+Byte Stuffing Done
+Info Frame built
+Info Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Alarm 1 triggered.
+Unexpected Control Field: FF
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+Unexpected Control Field: 00
+Sent Frame: 7E 03 00 03 02 00 02 00 00 00 00 00 00 00 01 DE 74 41 B3 FC 7F 00 00 DA 7E 
+^C
