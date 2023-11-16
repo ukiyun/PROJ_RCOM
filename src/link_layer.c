@@ -52,6 +52,7 @@ enum State{
     BCC_OK,			// Received Independent Protection Field and is valid
     STOP_MACHINE,	// End State
     READ_DATA,      // State in which Payload is read
+    RECEIVED_ESCAPE,   // Received data
 };
 
 
@@ -541,10 +542,10 @@ int llread(unsigned char *packet)
                     break;
                 case READ_DATA:
                     if (byte == ESCAPE) {
-                        read(fd, &byte, 1);
-                        packet[position++] = byte ^ 0x20;       
+                        currentState = RECEIVED_ESCAPE;
+                        break;
                     }
-                    else if (byte == FLAG) {
+                    if (byte == FLAG) {
                         //De-stuffing
 
                         unsigned char bcc2 = packet[position-1];          // bcc2 + flag
@@ -600,6 +601,15 @@ int llread(unsigned char *packet)
                     }
                     else {
                         packet[position++] = byte;
+                    }
+                    break;
+                case RECEIVED_ESCAPE:
+                    currentState = READ_DATA;
+                    if(byte == 0x5E){
+                        packet[position++] = FLAG;
+                    }
+                    if(byte == 0x5D){
+                        packet[position++] = ESCAPE;
                     }
                     break;
                 default:
