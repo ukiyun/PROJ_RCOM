@@ -23,7 +23,7 @@
 volatile int STOP = FALSE;
 
 int frameTransmitterControl = 0;
-int frameReceiverControl = 0;
+int frameReceiverControl = 1;
 
 
 int alarmEnabled = FALSE;
@@ -48,7 +48,7 @@ enum State{
     FLAG_RCV,		// Received Flag
     A_RCV,			// Received Address Field
     C_RCV,			// Received Control Field
-    CI_RCV,			// Received Control Field is C_I0 || C_I1
+    // CI_RCV,			// Received Control Field is C_I0 || C_I1
     BCC_OK,			// Received Independent Protection Field and is valid
     STOP_MACHINE,	// End State
     READ_DATA,      // State in which Payload is read
@@ -495,7 +495,7 @@ int llread(unsigned char *packet)
 
     unsigned char byte;
     unsigned char controlField;
-    unsigned int position = 0;
+    int position = 0;
 
     enum State currentState = START;
 
@@ -543,11 +543,11 @@ int llread(unsigned char *packet)
                 case READ_DATA:
                     if (byte == ESCAPE) {
                         currentState = RECEIVED_ESCAPE;
-                        break;
+                        printf("ESCAPE\n");
                     }
-                    if (byte == FLAG) {
+                    else if (byte == FLAG) {
                         //De-stuffing
-
+                        printf("FLAG\n");
                         unsigned char bcc2 = packet[position-1];          // bcc2 + flag
                         position--;
                         packet[position] = '\0';                    // removed bcc2 and ending flag,  position will be equal to the size of whats left
@@ -560,39 +560,30 @@ int llread(unsigned char *packet)
 
                         if (bcc2 == bcc2Check) {
                             currentState = STOP_MACHINE;
-
-                            int readControlField;
-                            if (controlField == C_I0) {
-                                readControlField = C_RR0;            // Ready to Receive Information Frame 0
-                            }
-                            else {
-                                readControlField = C_RR1;            // Ready to Receive Information Frame 1
-                            }
+                            printf("CURRENT STATE = STOP_MACHINE\n");
+                            
 
                             unsigned char reading_frame[5];
                             reading_frame[0] = FLAG;
-                            reading_frame[1] = A_RX;
-                            reading_frame[2] = readControlField;
-                            reading_frame[3] = A_RX ^ readControlField;
+                            reading_frame[1] = A_TX;
+                            reading_frame[2] = C_RR(frameReceiverControl);
+                            reading_frame[3] = A_TX ^ C_RR(frameReceiverControl);
                             reading_frame[4] = FLAG;
 
                             write(fd, reading_frame, 5);            // Writes the frame to the File Descriptor
+                            frameReceiverControl = (frameReceiverControl +1)%2;
+                            printf("Position value: %d\n", position);                            
                             return position;                        // Return number of characters read
                         }
                         else {                                      // bcc2 and Check don't match
-                            int readControlField;
-                            if (controlField == C_I0) {
-                                readControlField = C_REJ0;            // Reject Information Frame 0 (errors detected)
-                            }
-                            else {
-                                readControlField = C_REJ1;            // Reject Information Frame 0 (errors detected)
-                            }
-                            
+                            printf("BCC2 CHECK != 2\n");                            
+                            printf("Position value: %d\n", position);
+  
                             unsigned char reading_frame[5];                
                             reading_frame[0] = FLAG;
-                            reading_frame[1] = A_RX;
-                            reading_frame[2] = readControlField;
-                            reading_frame[3] = A_RX ^ readControlField;
+                            reading_frame[1] = A_TX;
+                            reading_frame[2] = C_REJ(frameReceiverControl);
+                            reading_frame[3] = A_TX ^ C_REJ(frameReceiverControl);
                             reading_frame[4] = FLAG;
 
                             write(fd, reading_frame, 5);                // Write frame rejected into the File Descriptor
@@ -604,13 +595,11 @@ int llread(unsigned char *packet)
                     }
                     break;
                 case RECEIVED_ESCAPE:
+                    printf("RECEIVED_ESCAPE\n");
                     currentState = READ_DATA;
-                    if(byte == 0x5E){
-                        packet[position++] = FLAG;
-                    }
-                    if(byte == 0x5D){
-                        packet[position++] = ESCAPE;
-                    }
+                    packet[position++] = byte ^ 0x20;
+                    break;
+                case STOP_MACHINE:
                     break;
                 default:
                     break;
@@ -618,7 +607,7 @@ int llread(unsigned char *packet)
         }
     }
 
-    return 1;                  // read
+    return -1;                  // read
 }
 
 ////////////////////////////////////////////////
