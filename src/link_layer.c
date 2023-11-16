@@ -438,7 +438,11 @@ int llwrite(const unsigned char* buf, int bufSize)
     infoFrame = realloc(infoFrame, nextIndex);          // Memory Reallocation to the actual frame size
 
     printf("Info Frame built\n");
-
+    printf("Info Frame: ");
+    for (int i = 0; i < nextIndex; i++) {
+        printf("%02X ", infoFrame[i]);
+    }
+    printf("\n");
     // Dealing with the different Control Field Values
     int checkControl = 0;
     alarmCounter = 0;
@@ -450,13 +454,19 @@ int llwrite(const unsigned char* buf, int bufSize)
 
         while(alarmEnabled == FALSE  && checkControl!= 1){
             write(fd, infoFrame, nextIndex);
+            printf("Sent Frame: ");
+            for (int i = 0; i < nextIndex; i++) {
+                printf("%02X ", infoFrame[i]);
+            }
+            printf("\n");
             unsigned char controlField = getControlField();           // gets the Value inside the Frame ControlField
             
-            if(controlField == 0){                                      // didn't read control field
+           /* if(controlField == 0){                                      // didn't read control field
                 continue;
-            }
+            }*/
                 // ControlField Value makes the action change
-            else if (controlField == C_RR0 || controlField == C_RR1) {                   // If ControlField is the indication that Receiver is ready to receive InfoFrame
+            if (controlField == C_RR0 || controlField == C_RR1) {                   // If ControlField is the indication that Receiver is ready to receive InfoFrame
+                printf("Received RR%d, Frame accepted\n", controlField);                
                 checkControl = 1;                                                   // ControlField Accepted
                 frameTransmitterControl = (frameTransmitterControl + 1) % 2;        // Makes Sure frameTransmitterControl is either 1 or 0
             }
@@ -464,13 +474,20 @@ int llwrite(const unsigned char* buf, int bufSize)
                 checkControl = 0;                                  // Going to Retry Writing
                 printf("Control Field Rejected. Trying again...\n");
             }
-            else continue;   
+            else{
+                printf("Unexpected Control Field: %02X\n", controlField);
+            } 
 
         }
 
-    if(checkControl == 1) {break;}
-    alarmCounter++;
-    } 
+    if(checkControl == 1) {
+    printf("Frame Successfully acknowledged. \n");
+    break;
+    }else{
+        printf("Frame successfully acknowledge. \n");
+        alarmCounter++;
+    }
+    }
     
     free(infoFrame);        // Memory Allocation
     
@@ -498,10 +515,17 @@ int llread(unsigned char *packet)
     int position = 0;
 
     enum State currentState = START;
-
+    
+    unsigned char receivedFrame[5];
+    int receivedFrameSize = 0;
     while (currentState != STOP_MACHINE) {
-        if (read(fd, &byte, 1) > 0) {                       // If read is successful
-
+        int bytesRead = read(fd, &byte, 1);
+        if(bytesRead == -1){
+            fprintf(stderr, "Error reading from file descriptor");
+            return -1;
+}
+        if (bytesRead > 0) {                       // If read is successful
+            receivedFrame[receivedFrameSize++] = byte;
             //State Machine
             switch (currentState) {
                 case START:
@@ -551,18 +575,33 @@ int llread(unsigned char *packet)
                         unsigned char bcc2 = packet[position-1];          // bcc2 + flag
                         position--;
                         packet[position] = '\0';                    // removed bcc2 and ending flag,  position will be equal to the size of whats left
+                        
+                        printf("Received Frame: ");
+                        for (int i = 0; i < position; i++) {
+                            printf("%02X ", packet[i]);
+                        }
+                        printf("\n");
 
                         // checking BCC2
-                        unsigned char bcc2Check = packet[0];
-                        for (int index = 1; index < position; index++) {
-                            bcc2Check = bcc2Check ^ packet[index];
+                        unsigned char bcc2Check = 0;
+                        for (int index = 0; index < position; index++) {
+                            if (packet[index] == ESCAPE && index + 1 < position) {
+                                bcc2Check = bcc2Check ^ (packet[++index] ^ 0x20);
+                            } else {
+                                bcc2Check = bcc2Check ^ packet[index];
+                            }
                         }
+
 
                         if (bcc2 == bcc2Check) {
                             currentState = STOP_MACHINE;
                             printf("CURRENT STATE = STOP_MACHINE\n");
-                            
-
+                            printf("Received Frame: ");
+for (int i = 0; i < position; i++) {
+    printf("%02X ", packet[i]);
+}
+printf("\n");
+    
                             unsigned char reading_frame[5];
                             reading_frame[0] = FLAG;
                             reading_frame[1] = A_TX;
@@ -572,7 +611,9 @@ int llread(unsigned char *packet)
 
                             write(fd, reading_frame, 5);            // Writes the frame to the File Descriptor
                             frameReceiverControl = (frameReceiverControl +1)%2;
-                            printf("Position value: %d\n", position);                            
+                            printf("Sent RR%d\n", frameReceiverControl);
+                            printf("Position value: %d\n", position);                      
+                            printf("Frame successfully received.\n");      
                             return position;                        // Return number of characters read
                         }
                         else {                                      // bcc2 and Check don't match
@@ -606,7 +647,12 @@ int llread(unsigned char *packet)
             }
         }
     }
-
+    printf("Received Frame: ");
+    for(int i = 0; i<receivedFrameSize; i++){
+        printf("%02X ", receivedFrame[i]);
+    }
+    printf("\n");
+    
     return -1;                  // read
 }
 
