@@ -179,23 +179,28 @@ int readRxFrame(enum State* currentState) {
     return 0;
 }
 
-int getControlField() {
+int getControlField(int* errorControl) {
+    printf("Entered getControlField function\n");
     unsigned char byte;                       // frame going to be read
     unsigned char control;                    // control field holder
 
     int successControl;                   // control read Errors
-
+    
     enum State currentState = START;    // start state machine
 
     while (currentState != STOP_MACHINE) {
+        printf("Entered while\n");
         if ((successControl = read(fd, &byte, 1)) > 0) {
+            printf("Entered if\n");
             switch (currentState) {
                 case START:
+                    printf("Entered START\n");  
                     if (byte == FLAG) {
                         currentState = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
+                    printf("Entered FLAG_RCV\n");
                     if (byte == A_RX) {
                         currentState = A_RCV;
                     }
@@ -204,6 +209,7 @@ int getControlField() {
                     }
                     break;
                 case A_RCV:
+                    printf("Entered A_RCV\n");
                     if (byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1 || byte == C_DISC) {
                         control = byte;
                         currentState = C_RCV;
@@ -216,6 +222,7 @@ int getControlField() {
                     }
                     break;
                 case C_RCV:
+                    printf("Entered C_RCV\n");
                     if (byte == (A_RX ^ control)) {
                         currentState = BCC_OK;
                     }
@@ -227,6 +234,7 @@ int getControlField() {
                     }
                     break;
                 case BCC_OK:
+                    printf("Entered BCC_OK\n");
                     if (byte == FLAG) {
                         currentState = STOP_MACHINE;
                     }
@@ -237,15 +245,19 @@ int getControlField() {
                 default:
                     break;
             }
+            printf("Exited switch\n");
         }
         else if (successControl == 0) {      // Failed to read the Data from FD
-            return 0;
+            *errorControl = 0;
         }
         else {
-            return -1;                          // error
+            *errorControl = -1;                          // error
         }
     }
-
+    printf("Exited while\n");
+    *errorControl = 1;
+    printf("Error Control: %d\n", *errorControl);
+    printf("Control: %c\n", control);
     return control;                             // Will return  the Control Field of the Frame
 }
 
@@ -459,11 +471,14 @@ int llwrite(const unsigned char* buf, int bufSize)
                 printf("%02X ", infoFrame[i]);
             }
             printf("\n");
-            unsigned char controlField = getControlField();           // gets the Value inside the Frame ControlField
-            
-           /* if(controlField == 0){                                      // didn't read control field
-                continue;
-            }*/
+            int* errorControl=(int*)malloc(sizeof(int));
+            *errorControl = 1;
+            printf("Error Control Value Init: %d\n",*errorControl);
+            unsigned char controlField = getControlField(errorControl);          // gets the Value inside the Frame ControlField
+            if(errorControl <= 0){
+                printf("Error Reading Control Field\n");
+                return -1;            
+            }
                 // ControlField Value makes the action change
             if (controlField == C_RR0 || controlField == C_RR1) {                   // If ControlField is the indication that Receiver is ready to receive InfoFrame
                 printf("Received RR%d, Frame accepted\n", controlField);                
