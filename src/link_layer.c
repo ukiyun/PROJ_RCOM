@@ -437,17 +437,26 @@ int llwrite(const unsigned char* buf, int bufSize)
     }
 
     //Byte Stuffing
+    
     for(int index = 0; index<bufSize; index++){
+        printf("Index: %d\n", index);
+        printf("Byte: %02X\n", buf[index]);
         if(buf[index]==FLAG || buf[index]== ESCAPE){
+            printf("FLAG/ESCAPE\n");
             infoFrame[nextIndex++] = ESCAPE;
+            printf("XOR: %02X\n", buf[index] ^ STUFF_XOR);
             infoFrame[nextIndex++] = buf[index] ^ STUFF_XOR;         // escape octet followed by the result of the exclusive or of the octet replaced with octet STUFF_XOR          
         }
         else{
+            printf("NO FLAG/ESCAPE : %02X\n", buf[index]);
            infoFrame[nextIndex++] = buf[index]; 
         }
         
     }
     printf("Byte Stuffing Done\n");
+
+    
+
     // TRAILER
     infoFrame[nextIndex++] = bcc2;
     infoFrame[nextIndex++] = FLAG;

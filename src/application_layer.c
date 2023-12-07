@@ -34,11 +34,14 @@ int sendControlPacket(int packetInfo, const char* fileName, long size) {        
     controlPacket[currentPos++] = FILE_SIZE;
     controlPacket[currentPos++] = fileSize;
     memcpy(controlPacket + currentPos, &size, fileSize); //little endian 
-    currentPos+= size;
+    currentPos+= fileSize;
     controlPacket[currentPos++] = FILE_NAME;
     controlPacket[currentPos++] = fileNameSize;
-    memcpy(controlPacket + currentPos, &size, fileNameSize);
-    currentPos += size;
+    memcpy(controlPacket + currentPos, fileName, fileNameSize);
+    printf("Filename: %s\n", fileName);
+    printf("Filename Size: %d\n", fileNameSize);
+    printf("TESTE %c\n", controlPacket[currentPos]);
+    currentPos += fileNameSize;
 
     if (llwrite(controlPacket, packetSize)<0) {                             // in case it can't write the control Packet
         fprintf(stderr, "Failed while trying to send Control Packet\n");
