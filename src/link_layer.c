@@ -527,11 +527,11 @@ int llread(unsigned char *packet)
 
     unsigned char byte;
     unsigned char controlField;
-    int position = 0;
+    //int position = 0;
 
     enum State currentState = START;
     
-    unsigned char receivedFrame[5];
+    unsigned char receivedFrame[MAX_PAYLOAD];
     int receivedFrameSize = 0;
     while (currentState != STOP_MACHINE) {
         int bytesRead = read(fd, &byte, 1);
@@ -587,20 +587,22 @@ int llread(unsigned char *packet)
                     else if (byte == FLAG) {
                         //De-stuffing
                         printf("FLAG\n");
-                        unsigned char bcc2 = packet[position-1];          // bcc2 + flag
-                        position--;
-                        packet[position] = '\0';                    // removed bcc2 and ending flag,  position will be equal to the size of whats left
+
+                        unsigned char bcc2 = packet[receivedFrameSize-1];          // bcc2 + flag
+                        
+                        //position--;
+                        //packet[position] = '\0';                    // removed bcc2 and ending flag,  position will be equal to the size of whats left
                         
                         printf("Received Frame: ");
-                        for (int i = 0; i < position; i++) {
+                        for (int i = 0; i < receivedFrameSize; i++) {
                             printf("%02X ", packet[i]);
                         }
                         printf("\n");
 
                         // checking BCC2
                         unsigned char bcc2Check = 0;
-                        for (int index = 0; index < position; index++) {
-                            if (packet[index] == ESCAPE && index + 1 < position) {
+                        for (int index = 0; index < receivedFrameSize; index++) {
+                            if (packet[index] == ESCAPE && index + 1 < receivedFrameSize) {
                                 bcc2Check = bcc2Check ^ (packet[++index] ^ 0x20);
                             } else {
                                 bcc2Check = bcc2Check ^ packet[index];
@@ -612,10 +614,10 @@ int llread(unsigned char *packet)
                             currentState = STOP_MACHINE;
                             printf("CURRENT STATE = STOP_MACHINE\n");
                             printf("Received Frame: ");
-for (int i = 0; i < position; i++) {
-    printf("%02X ", packet[i]);
-}
-printf("\n");
+                            for (int i = 0; i < receivedFrameSize; i++) {
+                                printf("%02X ", packet[i]);
+                            }
+                            printf("\n");
     
                             unsigned char reading_frame[5];
                             reading_frame[0] = FLAG;
@@ -627,13 +629,13 @@ printf("\n");
                             write(fd, reading_frame, 5);            // Writes the frame to the File Descriptor
                             frameReceiverControl = (frameReceiverControl +1)%2;
                             printf("Sent RR%d\n", frameReceiverControl);
-                            printf("Position value: %d\n", position);                      
+                            printf("Position value: %d\n", receivedFrameSize);                      
                             printf("Frame successfully received.\n");      
-                            return position;                        // Return number of characters read
+                            return receivedFrameSize;                        // Return number of characters read
                         }
                         else {                                      // bcc2 and Check don't match
                             printf("BCC2 CHECK != 2\n");                            
-                            printf("Position value: %d\n", position);
+                            printf("Position value: %d\n", receivedFrameSize);
   
                             unsigned char reading_frame[5];                
                             reading_frame[0] = FLAG;
@@ -647,13 +649,13 @@ printf("\n");
                         }
                     }
                     else {
-                        packet[position++] = byte;
+                        packet[receivedFrameSize++] = byte;
                     }
                     break;
                 case RECEIVED_ESCAPE:
                     printf("RECEIVED_ESCAPE\n");
                     currentState = READ_DATA;
-                    packet[position++] = byte ^ 0x20;
+                    packet[receivedFrameSize++] = byte ^ 0x20;
                     break;
                 case STOP_MACHINE:
                     break;
