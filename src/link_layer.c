@@ -440,7 +440,7 @@ int llwrite(const unsigned char* buf, int bufSize)
     for(int index = 0; index<bufSize; index++){
         if(buf[index]==FLAG || buf[index]== ESCAPE){
             infoFrame[nextIndex++] = ESCAPE;
-            infoFrame[nextIndex++] = buf[index] ^ 0x20;         // escape octet followed by the result of the exclusive or of the octet replaced with octet 0x20          
+            infoFrame[nextIndex++] = buf[index] ^ STUFF_XOR;         // escape octet followed by the result of the exclusive or of the octet replaced with octet STUFF_XOR          
         }
         else{
            infoFrame[nextIndex++] = buf[index]; 
@@ -642,7 +642,7 @@ while (currentState != STOP_MACHINE) {
                         unsigned char bcc2Check = 0;
                         for (int index = 0; index < receivedFrameSize; index++) {
                             if (packet[index] == ESCAPE && index + 1 < receivedFrameSize) {
-                                bcc2Check = bcc2Check ^ (packet[++index] ^ 0x20);
+                                bcc2Check = bcc2Check ^ (packet[++index] ^ STUFF_XOR);
                             } else {
                                 bcc2Check = bcc2Check ^ packet[index];
                             }
@@ -694,7 +694,7 @@ while (currentState != STOP_MACHINE) {
                 case RECEIVED_ESCAPE:
                     printf("RECEIVED_ESCAPE\n");
                     currentState = READ_DATA;
-                    packet[receivedFrameSize++] = byte ^ 0x20;
+                    packet[receivedFrameSize++] = byte ^ STUFF_XOR;
                     break;
                 case STOP_MACHINE:
                     break;

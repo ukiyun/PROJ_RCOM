@@ -23,10 +23,10 @@
 
 
 // responses
-#define C_RR0 0x05		// indication sent by the receiver that it is ready to receive an information frame nº 0
-#define C_RR1 0x85		// indication sent by the receiver that it is ready to receive an information frame nº 1
-#define C_REJ0 0x01		// indication sent by the receiver that it has rejected an information frame nº 0 (detected an error)
-#define C_REJ1 0x81		// indication sent by the receiver that it has rejected an information frame nº 1 (detected an error)
+#define C_RR0 0x05		// indication sent by the receiver that it is ready to receive an information frame nï¿½ 0
+#define C_RR1 0x85		// indication sent by the receiver that it is ready to receive an information frame nï¿½ 1
+#define C_REJ0 0x01		// indication sent by the receiver that it has rejected an information frame nï¿½ 0 (detected an error)
+#define C_REJ1 0x81		// indication sent by the receiver that it has rejected an information frame nï¿½ 1 (detected an error)
 
 #define C_RR(n) ((n<<7) | 0x05)
 #define C_REJ(n) ((n<<7) | 0x01)
@@ -44,6 +44,7 @@
 #define CONTROL_DATA 0x01		// Data Packet Control Field
 #define CONTROL_START 0x02		// Control Packet Control Field
 #define CONTROL_END 0x03		// Control Packet Control Field
+#define STUFF_XOR 0x20			// XOR value for byte stuffing
 
 //TLV
 #define FILE_SIZE 0x00
