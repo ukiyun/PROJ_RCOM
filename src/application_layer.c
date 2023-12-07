@@ -23,8 +23,8 @@
 
 int sendControlPacket(int packetInfo, const char* fileName, long size) {            // packetInfo is either CONTROL_DATA/CONTROL_START/CONTROL_END
     int bits = sizeof(int) * 8 - __builtin_clz(size);       // calculates the number of bits required to represent an int with value size in binary
-    size_t fileSize = (bits + 7) / 8;                            // L2
-    size_t fileNameSize = strlen(fileName) + 1;                  // L1
+    unsigned char fileSize = (bits + 7) / 8;                            // L2
+    unsigned char fileNameSize = strlen(fileName) + 1;                  // L1
     long packetSize = 5 + fileSize + fileNameSize;               // 5 + L1 + L2
 
     unsigned char* controlPacket = (unsigned char*)malloc(packetSize);
@@ -32,10 +32,13 @@ int sendControlPacket(int packetInfo, const char* fileName, long size) {        
     unsigned int currentPos = 0;
     controlPacket[currentPos++] = packetInfo;
     controlPacket[currentPos++] = FILE_SIZE;
-    memcpy(controlPacket + currentPos, &fileSize, sizeof(size_t));          // Copies L2 to controlPacket
-    currentPos += sizeof(size_t);                                           // Set currentPos to the int after L2
+    controlPacket[currentPos++] = fileSize;
+    memcpy(controlPacket + currentPos, &size, fileSize); //little endian 
+    currentPos+= size;
     controlPacket[currentPos++] = FILE_NAME;
-    memcpy(controlPacket + currentPos, &fileName, fileNameSize);            // Copies fileName to controlPacket w/ size of fileName
+    controlPacket[currentPos++] = fileNameSize;
+    memcpy(controlPacket + currentPos, &size, fileNameSize);
+    currentPos += size;
 
     if (llwrite(controlPacket, packetSize)<0) {                             // in case it can't write the control Packet
         fprintf(stderr, "Failed while trying to send Control Packet\n");
