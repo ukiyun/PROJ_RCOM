@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 
-#define MAX_PAYLOAD_SIZE 1000
+// #define MAX_PAYLOAD_SIZE 1000
 
 
 int sendControlPacket(int packetInfo, const char* fileName, long size) {            // packetInfo is either CONTROL_DATA/CONTROL_START/CONTROL_END
@@ -146,7 +146,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.timeout = timeout;
 
     if (llopen(connectionParameters) < 0) {
-        fprintf(stderr, "Failed trying to establish a connection\n");
+        fprintf(stdout, "Failed trying to establish a connection\n");
         return;
     }
 
@@ -211,7 +211,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         case LlRx: {
             size_t startControlPacketSize;
             char rxFileName[0xff];
-            unsigned char* startControlPacket = (unsigned char*)malloc(MAX_PAYLOAD_SIZE);
+            unsigned char* startControlPacket = (unsigned char*)malloc(MAX_PAYLOAD);
 
             printf("Attempting to read Start Packet...\n");
 
