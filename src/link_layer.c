@@ -370,7 +370,9 @@ int llopen(LinkLayer connectionParameters) {
                 return -1;                          // Means the end of state machine was not reached, therefore, there are errors
             }
 
+        printf("Connection Established!\n");
             break;
+
 
         }  // close the case LlTx
 
@@ -387,6 +389,7 @@ int llopen(LinkLayer connectionParameters) {
 
             write(fd, received_frame, 5);           // Writes received frame into the file descriptor
 
+            printf("Connection Established!\n");
             break;
 
         }   // close the case LlRx
@@ -395,7 +398,9 @@ int llopen(LinkLayer connectionParameters) {
             return -1;
             break;
 
+
     }   // close the switch function
+
 
     return fd;
 
@@ -533,6 +538,39 @@ int llread(unsigned char *packet)
     
     unsigned char receivedFrame[5];
     int receivedFrameSize = 0;
+
+while (currentState != STOP_MACHINE) {
+    int bytesRead = read(fd, &byte, 1);
+    if(bytesRead == -1){
+        fprintf(stderr, "Error reading from file descriptor");
+        return -1;
+    }
+    if (bytesRead > 0) {                       // If read is successful
+        receivedFrame[receivedFrameSize++] = byte;
+        printf("Received byte: %02X\n", byte);  // Log the received byte
+        //State Machine
+        switch (currentState) {
+            case START:
+                if (byte == FLAG) {
+                    currentState = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if (byte == A_TX) {
+                    currentState = A_RCV;
+                }
+                else if (byte != FLAG) {
+                    currentState = START;
+                }
+                break;
+            case A_RCV:
+                if (byte == C_I0 || byte == C_I1) {             // If Byte is equivalent to the Information Frame 0 or 1
+                    controlField = byte;                        // Saving the Value stored in the Control Field
+                    printf("Control field: %02X\n", controlField);  // Log the control field
+                    currentState = C_RCV;
+
+    
+/*
     while (currentState != STOP_MACHINE) {
         int bytesRead = read(fd, &byte, 1);
         if(bytesRead == -1){
@@ -560,6 +598,7 @@ int llread(unsigned char *packet)
                     if (byte == C_I0 || byte == C_I1) {             // If Byte is equivalent to the Information Frame 0 or 1
                         controlField = byte;                        // Saving the Value stored in the Control Field
                         currentState = C_RCV;
+                    }*/
                     }
                     else if (byte == FLAG) {
                         currentState = FLAG_RCV;
@@ -658,6 +697,7 @@ printf("\n");
                 case STOP_MACHINE:
                     break;
                 default:
+                    printf("Byte: %02X\n", byte);
                     break;
             }
         }

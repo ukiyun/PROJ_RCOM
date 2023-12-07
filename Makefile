@@ -24,7 +24,7 @@ $(BIN)/main: main.c $(SRC)/*.c
 	$(CC) $(CFLAGS) -o $@ $^ -I$(INCLUDE)
 
 $(BIN)/cable: $(CABLE_DIR)/cable.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 .PHONY: run_tx
 run_tx: $(BIN)/main
